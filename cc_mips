@@ -1,0 +1,171 @@
+#!/bin/sh
+#
+# Alright, here's the deal: The "RX CPU" we're targeting is a big-endian MIPS
+# CPU. There are a number of things to consider here:
+#
+#   1. Cross-compilation will be necessary. clang doesn't need to be recompiled
+#      to crosscompile, so it's more convenient to use clang. Thus this build
+#      toolchain is designed to use clang and clang alone.
+#
+#   2. We're targeting custom embedded hardware and are invariably going to
+#      know better than the OS environment when it comes to knowing what
+#      options to pass to clang. So we invoke the clang -cc1 frontend directly,
+#      rather than using the driver interface.
+#
+#   3. The RX CPU does not appear to have a hardware multiplier; that is, it
+#      does not support the MULT instruction. However, neither GCC nor clang
+#      support disabling output of MULT instructions when targeting MIPS, since
+#      MULT support is a requirement of the MIPS ISA, so _theoretically_ such
+#      hardware doesn't actually exist, right?
+#
+#      This is a bit trickier to deal with. Rather than tracking down some
+#      ancient version of gcc 2.x which still supports targeting MIPS CPUs
+#      without MULT support, I decided to cheese it:
+#
+#      The C source is careful to avoid using the multiplication operator.
+#      Careful examination of the assembly output of clang reveals that,
+#      thankfully, it is very rare for clang/LLVM to introduce multiplication
+#      instructions itself. In fact, the only instance of its emitting the MULT
+#      instruction is for a function which performs multiplication manually
+#      using a loop - i.e., the optimizer is too smart.
+#
+#      So the following things are done:
+#
+#        a. The optimization passes to be enabled are manually specified,
+#           and the optimization pass which was identified as causing
+#           optimization of the above loop to a MULT instruction (indvars) is
+#           removed from the list.
+#
+#           Unfortunately, clang doesn't expose a command line option for
+#           disabling optimization passes. This is apparently deliberate due to
+#           the instability of the optimizer's command line interface.
+#
+#           So we tell clang -cc1 to just emit LLVM code and pass it manually
+#           to opt (the LLVM optimization tool), and then pass the output of
+#           that manually to llvm-as, etc.
+#
+#        b. At the last minute, the final MIPS ISA assembly is crudely grepped
+#           for any MULT instructions. If any are found, the build fails. This
+#           ensures that any changes to code/the build environment/clang/LLVM
+#           which cause MULT instructions to be emitted despite the above
+#           measures result in the build failing noisily rather than the
+#           building of bad code.
+#
+# This shell script is used to compile a single C source file to an object
+# file. It invokes clang -cc1, opt and llvm-as and checks the assembly for
+# errant MULT (or even DIV) instructions.
+
+set -e
+
+OPTIMIZATIONS="
+  -globalopt
+  -demanded-bits
+  -branch-prob
+  -inferattrs
+  -ipsccp
+  -dse
+  -loop-simplify
+  -scoped-noalias
+  -barrier
+  -adce
+  -deadargelim
+  -memdep
+  -licm
+  -globals-aa
+  -rpo-functionattrs
+  -basiccg
+  -loop-idiom
+  -forceattrs
+  -mem2reg
+  -simplifycfg
+  -early-cse
+"
+# -instcombine
+OPTIMIZATIONS="$OPTIMIZATIONS
+  -sccp
+  -loop-unswitch
+  -loop-vectorize
+  -tailcallelim
+  -functionattrs
+  -loop-accesses
+  -memcpyopt
+  -loop-deletion"
+# -reassociate
+OPTIMIZATIONS="$OPTIMIZATIONS
+  -strip-dead-prototypes
+  -loops
+  -basicaa
+  -correlated-propagation
+  -lcssa
+  -domtree
+  -always-inline
+  -aa
+  -block-freq
+  -float2int
+  -lower-expect
+  -sroa
+  -loop-unroll
+  -alignment-from-assumptions
+  -lazy-value-info
+  -prune-eh -jump-threading
+  -loop-rotate
+"
+#-indvars
+OPTIMIZATIONS="$OPTIMIZATIONS
+  -bdce
+  -scalar-evolution
+  -tbaa
+  -assumption-cache-tracker
+
+  -elim-avail-extern
+  -mldst-motion
+  -gvn
+  -inline
+  -globaldce
+  -constmerge
+
+  -argpromotion
+";
+
+# Usage: ./cc out.o in.c extra-args...
+[ -z "$2" ] && {
+  echo >&2 "$0: usage: out.o in.c extra-args..."
+  exit 2
+}
+
+OUT="$1"
+IN="$2"
+shift
+shift
+
+## Ensure that we get unwrapped clang on NixOS.
+CLANGVER=$(clang --version|head -n 1|sed 's/^.*version \([0-9]*\.[0-9]\).*$/\1/')
+CLANG=clang
+which "clang-$CLANGVER" >/dev/null 2>/dev/null && CLANG="clang-$CLANGVER"
+
+## Compile.
+"$CLANG" -cc1 \
+  -triple mips-unknown-none -target-cpu mips2 \
+  -disable-llvm-passes -emit-llvm \
+  -Oz "$@" \
+  -o "${OUT}.ll-unopt" "$IN"
+
+## Optimize.
+opt -S $OPTIMIZATIONS \
+  \
+  "${OUT}.ll-unopt" > "${OUT}.ll-opt"
+
+## Ensure no MUL/DIV instructions have gotten through.
+if cat "${OUT}.ll-opt" | grep -Eiq '(mul|divu?\s|mov[nz]\s)'; then
+  echo >&2 "Unsupported instruction detected"
+  exit 1
+fi
+
+llc -o="${OUT}.s" "${OUT}.ll-opt"
+if cat "${OUT}.s" | grep -Eiq '(mul|divu?\s|mov[nz]\s)'; then
+  echo >&2 "Unsupported instruction detected in assembly"
+  exit 1
+fi
+
+## Assemble
+llc -o="${OUT}" -filetype=obj "${OUT}.ll-opt"

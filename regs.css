@@ -1,0 +1,30 @@
+.res { margin-bottom: 0.3em; background-color: #e0e0e0; }
+.res h2 { font-size: 1em; border-top: solid 0.2em #d0d0d0;
+  margin: 0; padding: 0; }
+.res-addr { font-family: monospace; white-space: pre; }
+.res-name {}
+.res-attrs { float: right; text-align: right; font-weight: normal; }
+.res-symbol { font-family: monospace; }
+.res-source { font-family: Verdana, sans-serif; text-transform: uppercase; font-size: 0.6em; opacity: .5; }
+.res-body { background-color: #eaeaea; padding: 0 2em; }
+.res-body th { text-align: left; font-weight: normal; opacity: .3; font-family: Verdana, sans-serif; }
+.res-body table { font-size: small; }
+.res-name:link, .res-name:visited { color: inherit; text-decoration: none; }
+p:first-child { margin-top: 0; }
+p:last-child { margin-bottom: 0; }
+table th { font-size: 0.9em; }
+th.bits, td.bits, th.value, td.value { text-align: right; }
+table.bits td, table.values td { vertical-align: top; }
+td.value { font-family: monospace; font-size: 1.22em; line-height: 1.67em; }
+
+.res-src-manual, .res-src-header {}
+.res-src-manual h2, .res-src-header h2 {}
+
+.res-src-unknown { background-color: #ffd0d0; }
+.res-src-unknown h2 { border-top-color: #ffc0c0 !important; }
+.res-src-guessed { background-color: #d0d0ff; }
+.res-src-guessed h2 { border-top-color: #c0c0ff !important; }
+.res-touch { font-family: Verdana, sans-serif; padding-left: 0.1em; }
+
+a.reflink:link, a.reflink:visited { font-family: monospace; color: #000080; text-decoration: none; }
+.legend { font-size: small; padding-top: 1em; }

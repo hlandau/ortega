@@ -1,0 +1,2 @@
+#!/bin/sh
+grep -RE '[A-Z][^ ]*Reg\(0x' *.c *.h|cut -d: -f2|sed 's/^.*\(Get\|Set\|Mask\|MaskOr\|Or\)Reg(\(0x[0-9a-fA-F]*\).*$/\2/g'|sort|uniq -c|sort -h

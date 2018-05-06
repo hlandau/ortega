@@ -1,0 +1,3357 @@
+Resources:
+  MEM 0x0000_0000:
+    Name: Unmapped
+    End: 0x0000_00FF
+  MEM 0x0000_0100:
+    Name: Send Ring 1 RCB
+    End: 0x0000_010F
+  MEM 0x0000_0110:
+    Name: Send Ring 2-16 RCB
+    End: 0x0000_01FF
+  MEM 0x0000_0200:
+    Name: RX Return Ring 0 RCB
+    End: 0x0000_020F
+  MEM 0x000_0210:
+    Name: RX Return Ring 1 RCB
+    End: 0x0000_021F
+  MEM 0x000_0220:
+    Name: RX Return Ring 2 RCB
+    End: 0x0000_022F
+  MEM 0x000_0230:
+    Name: RX Return Ring 3 RCB
+    End: 0x0000_023F
+  MEM 0x000_0240:
+    Name: VRQ RX Return Ring RCBs 4-16
+    End: 0x0000_030F
+  MEM 0x0000_0B50:
+    Name: Software Gencom
+    End: 0x0800_0F4F
+    Notes: |
+      This memory area is easily accessed by the host via the memory window,
+      due to being in the low address range. It is used for driver-bootcode
+      communication. See the GEN resources defined herein for the details.
+  MEM 0x0000_0F50:
+    Name: Unmapped
+    End: 0x0000_3FFF
+  MEM 0x0000_4000:
+    Name: Send RCB0 NIC Addr
+    End: 0x0000_400F
+  MEM 0x0000_4010:
+    Name: Unmapped
+    End: 0x0000_FFFF
+  MEM 0x0001_0000:
+    Name: RX MBUF
+    End: 0x0001_9FFF
+  MEM 0x0001_A000:
+    Name: Unmapped
+    End: 0x0001_FFFF
+  MEM 0x0002_0000:
+    Name: SBD Cache
+    End: 0x0002_3FFF
+  MEM 0x0002_4000:
+    Name: Std RBD Cache
+    End: 0x0002_83FF
+  MEM 0x0002_8400:
+    Name: Jumbo RBD Cache
+    End: 0x0002_C7FF
+  MEM 0x0002_C800:
+    Name: TX MBUF
+    End: 0x0002_3BFF
+  MEM 0x0003_3C00:
+    Name: Unmapped
+    End: 0x0003_FFFF
+  MEM 0x0004_0000:
+    Name: RX Std Prod RCB0 NIC Addr
+    End: 0x0004_000F
+  MEM 0x0004_4400:
+    Name: RX Jumbo Prod RCB0 NIC Addr
+    End: 0x0004_440F
+  MEM 0x0004_4410:
+    Name: Unmapped
+    End: 0x00FF_FFFF
+  MEM 0x0800_0000:
+    Name: Bootcode
+    End: 0x0800_6FFF
+    Type: RWX
+    Source: Guessed
+    Notes: |
+      Bootcode is loaded and executed from here. The end of this range is used
+      for the stack (initial SP=0x0800_7000). End address guessed based on
+      initial stack pointer. This is "unmapped" according to the manual.
+
+      Stage1 code is usually loaded at 0x0800_3800, with stage2 code
+      usually being loaded at 0x0800_0000.
+
+      This area is unusual because it can handle both load/stores and
+      instruction fetches. All known other regions are either read/write only
+      (e.g. the packet buffers) or execute only (e.g. the boot ROM).
+  MEM 0x4000_0000:
+    Name: RX CPU Boot ROM
+    End: 0x4007_FFFF
+    Type: XO
+    Notes: |
+      The RX CPU reset vector is the start of this ROM, 0x4000_0000.
+
+      Words cannot be loaded from this region; only the CPU's instruction fetch
+      hardware can load from this region. Halt the CPU and use
+      REG_RX_RISC_PROGRAM_COUNTER and REG_RX_RISC_CUR_INSTRUCTION to inspect
+      the contents of this region.
+  MEM 0xC000_0000:
+    Name: Device Registers
+    End: 0xC000_7FFF
+    Notes: |
+      This region provides the RX CPU with access to the same registers
+      accessed by the host. For example, 0xC000_362C is REG_STATUS. This range
+      is used by bootcode to inspect and modify the device registers.
+  MEM 0xC001_0000:
+    Name: APE Registers
+    End: 0xC001_3FFF
+    Notes: |
+      APE control registers.
+  MEM 0xC001_4000:
+    Name: APE SHM
+    End: 0xC001_7FFF
+    Notes: |
+      APE shared memory range. This is used by the RX CPU to communicate with
+      the APE. There is one such range for each function, and the APE can
+      address each one independently, while each RX CPU has its shared memory
+      region mapped here and cannot see the shared memory regions of other
+      functions.
+  MEM 0xC001_8000:
+    Name: APE Registers II
+    End: 0xC001_8FFF
+    Notes: |
+      Seems to be more APE registers. Includes lock fields which were moved
+      from APE Registers. Probably an extension of the APE Registers block when
+      they ran out of room. End address is guessed.
+  MEM 0xC001_9000:
+    Name: Management Filters
+    End: 0xC001_93FF
+    Notes: |
+      Specified in manual. Contents and purpose unknown. End address is guessed
+      based on standard register block size.
+  MEM 0xC002_8000:
+    Name: APE Peripherals
+    End: 0xC002_FFFF
+    Source: Guessed
+    Notes: |
+      Need to check the diag tools again to see if this is right. End address
+      is randomly chosen. Peripherals are thought to include a UART.
+  MEM 0xC003_0000:
+    Name: APE Scratchpad
+    End: 0xC003_6FFF
+    Notes: |
+      Purpose unknown. Not to be confused with the APE event scratchpad used to
+      send messages to the APE, which uses the APE SHM area.
+  MEM 0xC003_7000:
+    Name: Unmapped
+    End: 0xC003_7FFF
+    Notes: |
+      Unknown.
+  MEM 0xC003_8000:
+    Name: RX CPU ROM Slave Access
+    End: 0xC003_9FFF
+    Notes: |
+      Purpose unknown. Doesn't seem to be available.
+  GEN 0x0000:
+    Name: Firmware Mailbox
+  GEN 0x0004:
+    Name: Data Sig
+  GEN 0x0008:
+    Name: Cfg
+    Bits:
+      0-3: TODO
+      4: "PHY Type: GPHY"
+      5: "PHY Type: SERDES"
+      6: WOL Enable
+      7-31: TODO
+    Notes: |
+      TODO.
+
+      This is set by stage1 based on various fields in GEN_CFG_FEATURE and
+      GEN_CFG_HW as loaded from NVM.
+  GEN 0x000C:
+    Name: Version
+    Notes: |
+      Unusual 16-bit field.
+  GEN 0x0024:
+    Name: PHY ID
+    Notes: |
+      Can be 0x5A5A_5A5A to indicate that this field is invalid; otherwise,
+      it is set to the MII PHY ID value.
+  GEN 0x00B0:
+    Name: ASF Status Mailbox
+    TG3: NIC_SRAM_FW_ASF_STATUS_MBOX
+    Notes: |
+      Sometimes set to BOOTCODE_READY_MAGIC.
+  GEN 0x00B4:
+    Name: Firmware Driver State Mailbox
+    Values:
+      "0x0000_0001": Start
+      "0x8000_0001": Start Done
+      "0x0000_0002": Unload
+      "0x8000_0002": Unload Done
+      "0x0000_0003": WOL
+      "0x0000_0004": Suspend
+  GEN 0x00B8:
+    Name: Firmware Reset Type Mailbox
+    Notes: TODO
+  GEN 0x00BC:
+    Source: Unknown
+    Notes: |
+      Set to 0xFEFE_0009 at S2 start. Possibly boot progress indicator.
+      Upper 16 is always 0xFEFE, possible validity indicator. Observed
+      lower16 values:
+        8
+        9 - Stage2 start
+  GEN 0x00C4:
+    Name: MAC Address High Mailbox
+  GEN 0x00C8:
+    Name: MAC Address Low Mailbox
+  GEN 0x00D8:
+    Source: Unknown
+    Bits:
+      0:
+        Name: Skip Main Loop Init
+        Notes: |
+          Name is a guess.
+      1:
+        Name: Force WOL
+        Notes: |
+          Name is a guess. Forces power down of some parts of the chip in
+          stage2 init.
+      4:
+        Name: No Modify Miscellaneous Control
+        Notes: |
+          Name is a guess. If set, stage2 will not modify
+          REG_MISCELLANEOUS_LOCAL_CONTROL.
+      7:
+        Notes: |
+          Indicates code already loaded. Seems related to fastboot.
+    Notes: |
+      Field names are guessed.
+  GEN 0x01DC:
+    Source: Unknown
+    Notes: |
+      Unknown. Some information from REG_CHIP_ID.
+  GEN 0x01E0:
+    Name: WOL Mailbox
+    Values:
+      0x474C_0000: Signature
+      0x0000_0001: Driver State Shutdown
+      0x0000_0002: Driver WOL
+      0x0000_0004: Set Magic Packet
+    Notes: |
+      Register manual states "recommended value" is 0x474C_0000.
+  GEN 0x01E4:
+    Name: Cfg Feature
+    Bits:
+      0: WOL Enable
+      1:
+        Name: PXE Enable
+        Notes: Controls whether expansion ROM is searched for by bootcode.
+      2-5:
+        Name: PXE Speed
+        Unobserved: true
+        Notes: Unknown aside from field name.
+      7:
+        Name: ASF Enable
+        Notes: |
+          Setting this causes MII not to be initialized at end of stage1
+          and MII/EMAC is not initialized in stage2.
+      8-11:
+        Name: PXE BAR Size
+        Notes: Involved in expansion ROM initialization.
+      12:
+        Name: Disable Setup Message
+        Notes: |
+          If set, PXE ROM will not prompt user to press a key at boot to
+          enter configuration tool.
+      13:
+        Name: Hotkey Option
+        Notes: |
+          Controls whether hotkey to enter configuration tool from PXE
+          option ROM is Ctrl+S or Ctrl+B.
+      14-15:
+        Name: PXE Bootstrap Type
+        Unobserved: true
+        Notes: Unknown aside from field name.
+      16-19:
+        Name: PXE Message Timeout
+        Unobserved: true
+        Notes: |
+          Unknown aside from field name. Probably length time given to press
+          hotkey at PXE option ROM boot prompt.
+      20-21:
+        Name: PXE Boot Protocol
+        Unobserved: true
+        Notes: |
+          Used by PXE Option ROM. Meaning unknown.
+      22:
+        Name: LOM Design
+        Notes: |
+          Set if the controller is used in a LAN-on-Motherboard design;
+          that is, if the controller is not on an expansion card.
+
+          Setting this causes the LSB of unknown REG 0x6550 to be set.
+      23-24:
+        Name: VAUX Cutoff Delay
+        Unobserved: true
+      25:
+        Name: WOL Limit 10
+        Unobserved: true
+      26:
+        Name: Link Idle
+        Notes: |
+          Sets `REG_CPMU_CONTROL__LINK_IDLE_POWER_MODE_ENABLE`.
+      27:
+        Unobserved: true
+        Notes: |
+          Was driver_wol_enable?
+      28:
+        Name: Cable Sense
+        Unobserved: true
+      29:
+        Name: MBA VLAN Enable
+        Notes: |
+          Enables VLAN support in PXE agent.
+      30:
+        Name: Link Aware Power Mode
+        Source: Guessed
+        Notes: |
+          Appears to be; sets `REG_CPMU_CONTROL__LINK_AWARE_POWER_MODE_ENABLE`.
+      31:
+        Name: Link Speed Power Mode
+        Notes: |
+          Sets `REG_CPMU_CONTROL__LINK_SPEED_POWER_MODE_ENABLE`.
+  GEN 0x01E8:
+    Name: Cfg Hardware
+    Notes: Set from NVM.
+    Bits:
+      2-3:
+        Name: Legacy LED Control
+        Notes: |
+          If `GEN_CFG_HW__SHASTA_EXT_LED__LEGACY`, the `REG_LED_CONTROL__LED_MODE`
+          field is set from this field.
+      12:
+        Name: Reverse N-Way
+        Notes: |
+          Meaning unclear aside from name. S2: something to do with VMAIN?
+      13:
+        Name: Mini PCI
+      14:
+        Name: Auto Powerdown Enable
+        TG3: NIC_SRAM_DATA_CFG_2_APD_EN
+      15-16:
+        Name: SHASTA LED Control
+        Values:
+          0:
+            Name: Legacy
+            TG3: SHASTA_EXT_LED_LEGACY
+          1:
+            Name: Shared
+            TG3: SHASTA_EXT_LED_SHARED
+          2:
+            Name: MAC
+            TG3: SHASTA_EXT_LED_MAC
+          3:
+            Name: Combo
+            TG3: SHASTA_EXT_LED_COMBO
+        Notes: Related to LED control.
+      17:
+        Name: Time Sync Mode Enable
+        Source: Guessed
+        Notes: |
+          Controls `REG_GRC_MODE_CONTROL__TIME_SYNC_MODE_ENABLE`.
+      18-19:
+        Name: Timesync GPIO Mapping
+        Source: Guessed
+        Notes: |
+          Copied to `REG_EAV_REF_CLOCK_CONTROL__TIMESYNC_GPIO_MAPPING`.
+      20-22:
+        Name: APE GPIO 0 Mapping
+        Source: Guessed
+        Notes: |
+          Copied to `REG_EAV_REF_CLOCK_CONTROL__APE_GPIO_0_MAPPING`.
+      23-25:
+        Name: APE GPIO 1 Mapping
+        Source: Guessed
+        Notes: |
+          Copied to `REG_EAV_REF_CLOCK_CONTROL__APE_GPIO_1_MAPPING`.
+      26-28:
+        Name: APE GPIO 2 Mapping
+        Source: Guessed
+        Notes: |
+          Copied to `REG_EAV_REF_CLOCK_CONTROL__APE_GPIO_2_MAPPING`.
+      29-31:
+        Name: APE GPIO 3 Mapping
+        Source: Guessed
+        Notes: |
+          Copied to `REG_EAV_REF_CLOCK_CONTROL__APE_GPIO_3_MAPPING`.
+  GEN 0x01EC:
+    Name: Cfg Shared
+    Notes: Set from NVM.
+    Bits:
+      0:
+        Name: Port Swap
+        Notes: |
+          Probably vestigial. Doesn't appear to be implemented.
+
+          TODO: check if this causes NCSI clock output disable (old note)?
+      1:
+        Name: ASPM Debounce
+        TG3: NIC_SRAM_ASPM_DEBOUNCE
+        BMAPI: L1ASPM_Debounce_En
+      2:
+        Name: Fiber WoL Capable
+      3:
+        Name: Disable Power Saving
+        BMAPI: DisablePowerSaving
+      7:
+        Notes: |
+          Causes `REG_GPHY_CONTROL_STATUS__SWITCHING_REGULATOR_POWER_DOWN`.
+
+          BMAPI: 3 bits, 0x0000_0380, HotPlugPwrBdgtCnt.
+      8:
+        Notes: |
+          Sets NCSI_CLOCK_OUTPUT_DISABLE flag in REG_TOP_LEVEL_MISCELLANEOUS_CONTROL_1.
+      9-10:
+        Notes: |
+          Unknown. If set to 0x0000_0200, causes certain MII write during stage1 init.
+      15:
+        Notes: |
+          Unknown field, causes LSB in unknown REG 0x64DC to be set during stage1.
+      22:
+        Name: Link Flap Avoid
+        TG3: NIC_SRAM_LNK_FLAP_AVOID
+      23:
+        Name: 1G on VAUX OK
+        TG3: NIC_SRAM_1G_ON_VAUX_OK
+      26-27:
+        Notes: |
+          Unknown field. Used in stage1 init.
+      28-29:
+        Notes: |
+          Sets unknown PCIe control REG 0x7C04, but only for IBM or Huawei subsystem IDs.
+      30-31:
+        Notes: |
+          Unknown field. Used in stage1 init.
+  GEN 0x0214:
+    Name: Firmware Version
+    Notes: |
+      Set from NVM 0x096; firmware version and upper 16 bits of manufacturing date.
+  GEN 0x02A8:
+    Name: Cfg Hardware 2
+    Bits:
+      0:
+        Name: Enable Autonegotiation
+        Notes: |
+          Enable autonegotiation in MII init (S2).
+      1:
+        Name: Expansion ROM Enable
+        Notes: |
+          Controls whether expansion ROM is searched for (S1).
+      2:
+        Notes: |
+          Controls... something. TODO
+      4-5:
+        Name: Unknown SERDES 13 10
+        Notes: |
+          Controls some writes to MII (BLOCK 0x10):0x10 (SERDES).
+      6-7:
+        Name: Unknown SERDES 13 12
+        Notes: |
+          Controls some writes to MII (BLOCK 0x13):0x12 (SERDES).
+      21:
+        Name: "Unknown SERDES 10 10: 01"
+        Notes: |
+          Enable some unknown flag in SERDES MII init path. (BLOCK 0x10):0x10 bit 0x01.
+      22:
+        Name: "Unknown SERDES 10 10: 10"
+        Notes: |
+          Enable some unknown flag in SERDES MII init path. (BLOCK 0x10):0x10 bit 0x10.
+  GEN 0x02B0:
+    Name: CPMU Status
+    Notes: |
+      The upper 16 bits of this is the upper 16 bits of REG_STATUS, and the lower
+      16 bits are set to 0x362C to indicate validity.
+  GEN 0x02BC:
+    Name: Cfg 5
+    Bits:
+      0:
+        Notes: |
+          Unknown. Sets bit 24 in unknown PCIe control register 0x7C00.
+      1:
+        Name: Disable 1G Half Adv
+        TG3: NIC_SRAM_DISABLE_1G_HALF_ADV
+        Notes: |
+          Unknown. 
+      2-3:
+        Notes: |
+          Unknown. Controls initialization of REG 0x64DC.
+    Notes: |
+      Set from NVM 0x21C.
+  REG 0x0068:
+    Name: Miscellaneous Host Control
+    Bits:
+      0: Clear Interrupt
+      1: Mask Interrupt
+      2: Enable Endian Byte Swap
+      3: Enable Endian Word Swap
+      4: Enable PCI State Register Read/Write Capability
+      5: Enable Clock Control Register Read/Write Capability
+      6: Enable Register Word Swap
+      7: Enable Indirect Access
+      8: Mask Interrupt Mode
+      9: Enable Tagged Status Mode
+      10: RCB Check
+      11: Interrupt Check
+      12: Byte Enable Rule Check
+      13: Boundary Check
+      14: Log Header Overflow
+      15: Enable TLP Minor Error Tolerance
+      16-31: ASIC Revision ID
+  REG 0x0070:
+    Name: PCI State
+    S1: true
+    S2: true
+    Bits:
+      5: PCI Expansion ROM Desired
+      6: PCI Expansion ROM Retry
+      7: VPD Available
+      8: Flat View
+      9-11: Max PCI Target Retry
+      15: Config Retry
+      16: APE Control Register Write Enable
+      17: APE Shared Memory Write Enable
+      18: APE Program Space Write Enable
+      19: Generate Reset Plus
+  REG 0x007C:
+    Name: Memory Base
+  REG 0x0088:
+    Name: UNDI Receive Return Ring Consumer Index
+    Size: 8
+  REG 0x008C:
+    Name: UNDI Receive Return Ring Consumer Index Low
+    S1: true
+  REG 0x00BC:
+    Name: Link Status Control
+    S1: true
+    Notes: |
+      PCIe standard register.
+    Bits:
+      16-19:
+        Name: Negotiated Link Speed
+        Values:
+          1: PCIe 1.0
+          2: PCIe 2.0
+      20-25:
+        Name: Negotiated Link Width
+  REG 0x0400:
+    Name: EMAC Mode
+    S2: true
+    Bits:
+      0: Global Reset
+      1: Half Duplex
+      2-3:
+        Name: Port Mode
+        Values:
+          0: None
+          1: 10/100
+          2: 1000
+          3: TBI
+      4: Loopback Mode
+      7: Tagged MAC Control
+      8: Enable TX Bursting
+      9: Max Defer
+      11: Enable RX Statistics
+      12: Clear RX Statistics
+      13: Flush RX Statistics
+      14: Enable TX Statistics
+      15: Clear TX Statistics
+      16: Flush TX Statistics
+      17: Send Config Command
+      18: Magic Packet Detection Enable
+      19: ACPI Power On Enable
+      21: Enable TCE
+      22: Enable RDE
+      23: Enable FHDE
+      24: Keep Frame In WOL
+      25: Halt Interesting Packet PME
+      26: Free-Running ACPI
+      27: Enable APE RX Path
+      28: Enable APE TX Path
+      29: MAC Loopback Mode Control
+  REG 0x040C:
+    Name: LED Control
+    S1: true
+    Bits:
+      0: Override Link
+      1: LED 1000
+      2: LED 100
+      3: LED 10
+      4: Override Traffic
+      5: LED Traffic Blink
+      6: LED Traffic
+      7: LED Status 1000
+      8: LED Status 100
+      9: LED Status 10
+      10: LED Status Traffic
+      11-12:
+        Name: LED Mode
+        Values:
+          0: MAC
+          1: PHY Mode 1
+          2: PHY Mode 2
+          3: PHY Mode 1.
+      13: MAC Mode
+      14: Shared Traffic/Link LED Mode
+      19-30: Blink Period
+      31: Override Blink Rate
+  REG 0x0410:
+    Name: EMAC MAC Addresses 0 High
+    S1: true
+  REG 0x0414:
+    Name: EMAC MAC Addresses 0 Low
+    S1: true
+  REG 0x0418:
+    Name: EMAC MAC Addresses 1 High
+    S1: true
+  REG 0x041C:
+    Name: EMAC MAC Addresses 1 Low
+    S1: true
+  REG 0x0420:
+    Name: EMAC MAC Addresses 2 High
+    S1: true
+  REG 0x0424:
+    Name: EMAC MAC Addresses 2 Low
+    S1: true
+  REG 0x0428:
+    Name: EMAC MAC Addresses 3 High
+    S1: true
+  REG 0x042C:
+    Name: EMAC MAC Addresses 3 Low
+    S1: true
+  REG 0x044C:
+    Name: MII Communication
+    S1: true
+    S2: true
+    Bits:
+      0-15: Transaction Data
+      16-20: Register Address
+      21-25: PHY Address
+      26-27:
+        Name: Command
+        Values:
+          1: Write
+          2: Read
+      28: Read Failed
+      29: Start/Busy
+  REG 0x0454:
+    Name: MII Mode
+    S1: true
+    Bits:
+      15: Constant MDIO/MDC Clock Speed
+  REG 0x0468:
+    Name: Receive MAC Mode
+    S2: true
+    Bits:
+      1: Enable
+      8: Promiscuous Mode
+  REG 0x05B4:
+    Name: SGMII Status
+    S1: true
+    S2: true
+    Bits:
+      0: Autonegotiation Complete
+      1: Link Status
+      2: Duplex Status
+      3: Speed 1000
+      4: Speed 100
+      5: Next Page RX
+      6: Pause RX
+      7: Pause TX
+      8: Media Selection Mode
+      9: PCS CRS Detect
+      10: External CRS Detect
+      16-31: Link Partner Autonegotiation Capability
+  REG 0x3600:
+    Name: CPMU Control
+    S2: true
+    Bits:
+      0: CPMU Software Reset
+      1: CPMU Register Software Reset
+      2: Power Down
+      4: APE Sleep Mode Enable
+      5: APE Deep Sleep Mode Enable
+      9: Link Idle Power Mode Enable
+      10: Link Aware Power Mode Enable
+      14: Link Speed Power Mode Enable
+      16: GPHY 10MB Receive Only Mode Enable
+      18: Legacy Timer Enable
+      19: SGMII/PCS Power Down
+      28: Software Controlled GPHY Force DLL On
+  REG 0x3610:
+    Name: Link Aware Power Mode Clock Policy
+    S2: true
+    Bits:
+      16-20:
+        Name: MAC Clock Switch
+        Values:
+          1: 60.0MHz
+          3: 30.0MHz
+          5: 15.0MHz
+          7: 7.5MHz
+          9: 3.75MHz
+          17: 12.5MHz
+          19: 6.25MHz
+          21: 3.125MHz
+          23: 1.563MHz
+          25: 781kHz
+          31: 12.5MHz/1.25MHz
+  REG 0x3624:
+    Name: Clock Speed Override Policy
+    S1: true
+    S2: true
+    Bits:
+      16-20: MAC Clock Switch
+      31: MAC Clock Speed Override Enabled
+  REG 0x362C:
+    Name: Status
+    S1: true
+    S2: true
+    Bits:
+      0-3: Power Management State Machine State
+      4-6: CPMU Power State
+      7: Energy Detect Status
+      8-9: Power State
+      13: VMAIN Power Status
+      14: WOL Magic Packet Detection Enable Port 0
+      15: WOL ACPI Detection Enable Port 0
+      16: NCSI DLL Lock Status
+      17: GPHY DLL Lock Status
+      18: Link Idle Status
+      19-20: Ethernet Link Status
+      21: WOL Magic Packet Detection Enable Port 1
+      22: WOL ACPI Detection Enable Port 1
+      23-24: APE Status
+      25-29: Function Enable
+      30-31: Function Number
+  REG 0x3630:
+    Name: Clock Status
+    S1: true
+  REG 0x3638:
+    Name: GPHY Control/Status
+    S1: true
+    S2: true
+    Bits:
+      0: GPHY IDDQ
+      1: BIAS IDDQ
+      2: CPMU Software Reset
+      3: CPMU Register Software Reset
+      4: Power Down
+      15: SGMII/PCS Power Down
+      25: NCSI PLL Lock Status
+      26: TLP Clock Source
+      27: Switching Regulator Power Down
+  REG 0x3658:
+    Name: Chip ID
+  REG 0x365C:
+    Name: Mutex Request
+    S2: true
+  REG 0x3660:
+    Name: Mutex Grant
+    S2: true
+  REG 0x3664:
+    Name: GPHY Strap
+    S1: true
+    Bits:
+      2: TXMBUF ECC Enable
+      3: RXMBUF ECC Enable
+      4: RXCPU SPAD ECC Enable
+  REG 0x367C:
+    Name: Top Level Miscellaneous Control 1
+    S1: true
+    S2: true
+    Bits:
+      4: NCSI Clock Output Disable
+      5: Low Power IDDQ Mode
+  REG 0x36B0:
+    Name: EEE Mode
+    S2: true
+    Bits:
+      0: RX CPU Allow LPI
+      1: Drive Allow LPI
+      2: APE TX Detection Enable
+      3: EEE Link Idle Detection Enable
+      4: PCIe L1 Exit Detection Enable
+      5: RX CPU Allow LPI Enable
+      6: Send Index Detection Enable
+      7: User LPI Enable
+      8: TX LPI Enable
+      9: RX LPI Enable
+      10: Auto Wake Enable
+      11-18: Block Time
+      19: Drive Allow LPI Enable
+  REG 0x36BC:
+    Name: EEE Link Idle Control
+    S2: true
+    Bits:
+      2: Debug UART Idle
+  REG 0x36D0:
+    Name: EEE Control
+    S2: true
+    Bits:
+      0-15: Exit Time
+      16-31: Minimum Assert
+  REG 0x36F0:
+    Name: Global Mutex Request
+    S1: true
+    S2: true
+  REG 0x36F4:
+    Name: Global Mutex Grant
+    S1: true
+    S2: true
+  REG 0x4000:
+    Name: Memory Arbiter Mode
+    S1: true
+    S2: true
+    Bits:
+      1: Enable
+  REG 0x4400:
+    Name: Buffer Manager Mode
+    S1: true
+    Bits:
+      1: Enable
+      2: Attention Enable
+      5: Reset RXMBUF Pointer
+  REG 0x4910:
+    Name: LSO/NonLSO BD Read DMA Corruption Enable Control
+    S1: true
+    Bits:
+      16-17:
+        Name: PCI Request Burst Length for BD RDMA Engine
+        Values:
+          0: 128B
+          1: 256B
+          2: 512B
+          3: 4K
+      18-19:
+        Name: PCI Request Burst Length for NonLSO RDMA Engine
+        Values:
+          0: 128B
+          1: 256B
+          2: 512B
+          3: 4K
+  REG 0x5000:
+    Name: RX RISC Mode
+    S1: true
+    Bits:
+      0: Reset
+      1: Single Step
+      5: Enable Data Cache
+      6: ROM Fail
+      7: Enable Watchdog
+      10: Halt
+  REG 0x5004:
+    Name: RX RISC Status
+    Bits:
+      0: Hardware Breakpoint
+      1: Halt Instruction Executed
+      2: Invalid Instruction
+      3: Page 0 Data Refeence
+      4: Page 0 Instruction Reference
+      5: Invalid Data Access
+      6: Invalid Instruction Fetch
+      7: Bad Memory Alignment
+      8: Memory Address Trap
+      9: Register Address Trap
+      10: Halted
+      11:
+        Name: Unknown
+        Notes: |
+          Undocumented, but appears to be a W2C halt condition.
+      14: Data Access Stall
+      15: Instruction Fetch Stall
+      31: Blocking Read
+  REG 0x501C:
+    Name: RX RISC Program Counter
+  REG 0x5020:
+    Name: RX RISC Current Instruction
+    Source: Guessed
+    Notes: |
+      This undocumented register contains the current word
+      located at the program counter address loaded in
+      REG_RX_RISC_PROGRAM_COUNTER.
+  REG 0x5200:
+    Name: RX RISC Register 0
+    Alias: RX RISC Register $zero
+    Source: Guessed
+    Notes: $zero (R0)
+  REG 0x5204:
+    Name: RX RISC Register 1
+    Alias: RX RISC Register $at
+    Source: Guessed
+    Notes: $at (R1)
+  REG 0x5208:
+    Name: RX RISC Register 2
+    Alias: RX RISC Register $v0
+    Source: Guessed
+    Notes: $v0 (R2)
+  REG 0x520C:
+    Name: RX RISC Register 3
+    Alias: RX RISC Register $v1
+    Source: Guessed
+    Notes: $v1 (R3)
+  REG 0x5210:
+    Name: RX RISC Register 4
+    Alias: RX RISC Register $a0
+    Source: Guessed
+    Notes: $a0 (R4)
+  REG 0x5214:
+    Name: RX RISC Register 5
+    Alias: RX RISC Register $a1
+    Source: Guessed
+    Notes: $a1 (R5)
+  REG 0x5218:
+    Name: RX RISC Register 6
+    Alias: RX RISC Register $a2
+    Source: Guessed
+    Notes: $a2 (R6)
+  REG 0x521C:
+    Name: RX RISC Register 7
+    Alias: RX RISC Register $a3
+    Source: Guessed
+    Notes: $a3 (R7)
+  REG 0x5220:
+    Name: RX RISC Register 8
+    Alias: RX RISC Register $t0
+    Source: Guessed
+    Notes: $t0 (R8)
+  REG 0x5224:
+    Name: RX RISC Register 9
+    Alias: RX RISC Register $t1
+    Source: Guessed
+    Notes: $t1 (R9)
+  REG 0x5228:
+    Name: RX RISC Register 10
+    Alias: RX RISC Register $t2
+    Source: Guessed
+    Notes: $t2 (R10)
+  REG 0x522C:
+    Name: RX RISC Register 11
+    Alias: RX RISC Register $t3
+    Source: Guessed
+    Notes: $t3 (R11)
+  REG 0x5230:
+    Name: RX RISC Register 12
+    Alias: RX RISC Register $t4
+    Source: Guessed
+    Notes: $t4 (R12)
+  REG 0x5234:
+    Name: RX RISC Register 13
+    Alias: RX RISC Register $t5
+    Source: Guessed
+    Notes: $t5 (R13)
+  REG 0x5238:
+    Name: RX RISC Register 14
+    Alias: RX RISC Register $t6
+    Source: Guessed
+    Notes: $t6 (R14)
+  REG 0x523C:
+    Name: RX RISC Register 15
+    Alias: RX RISC Register $t7
+    Source: Guessed
+    Notes: $t7 (R15)
+  REG 0x5240:
+    Name: RX RISC Register 16
+    Alias: RX RISC Register $s0
+    Source: Guessed
+    Notes: $s0 (R16)
+  REG 0x5244:
+    Name: RX RISC Register 17
+    Alias: RX RISC Register $s1
+    Source: Guessed
+    Notes: $s1 (R17)
+  REG 0x5248:
+    Name: RX RISC Register 18
+    Alias: RX RISC Register $s2
+    Source: Guessed
+    Notes: $s2 (R18)
+  REG 0x524C:
+    Name: RX RISC Register 19
+    Alias: RX RISC Register $s3
+    Source: Guessed
+    Notes: $s3 (R19)
+  REG 0x5250:
+    Name: RX RISC Register 20
+    Alias: RX RISC Register $s4
+    Source: Guessed
+    Notes: $s4 (R20)
+  REG 0x5254:
+    Name: RX RISC Register 21
+    Alias: RX RISC Register $s5
+    Source: Guessed
+    Notes: $s5 (R21)
+  REG 0x5258:
+    Name: RX RISC Register 22
+    Alias: RX RISC Register $s6
+    Source: Guessed
+    Notes: $s6 (R22)
+  REG 0x525C:
+    Name: RX RISC Register 23
+    Alias: RX RISC Register $s7
+    Source: Guessed
+    Notes: $s7 (R23)
+  REG 0x5260:
+    Name: RX RISC Register 24
+    Alias: RX RISC Register $t8
+    Source: Guessed
+    Notes: $t8 (R24)
+  REG 0x5264:
+    Name: RX RISC Register 25
+    Alias: RX RISC Register $t9
+    Source: Guessed
+    Notes: $t9 (R25)
+  REG 0x5268:
+    Name: RX RISC Register 26
+    Alias: RX RISC Register $k0
+    Source: Guessed
+    Notes: $k0 (R26)
+  REG 0x526C:
+    Name: RX RISC Register 27
+    Alias: RX RISC Register $k1
+    Source: Guessed
+    Notes: $k1 (R27)
+  REG 0x5270:
+    Name: RX RISC Register 28
+    Alias: RX RISC Register $gp
+    Source: Guessed
+    Notes: $gp (R28)
+  REG 0x5274:
+    Name: RX RISC Register 29
+    Alias: RX RISC Register $sp
+    Source: Guessed
+    Notes: $sp (R29)
+  REG 0x5278:
+    Name: RX RISC Register 30
+    Alias: RX RISC Register $fp
+    Source: Guessed
+    Notes: $fp (R30)
+  REG 0x527C:
+    Name: RX RISC Register 31
+    Alias: RX RISC Register $ra
+    Source: Guessed
+    Notes: $ra (R31)
+  REG 0x6408:
+    Source: Unknown
+    S1: true
+  REG 0x6410:
+    Name: PCI Power Consumption Info
+    S1: true
+    Source: Guessed
+    Notes: |
+      This undocumented register is used to set PCIe Power Consumption
+      information as reported in configuration space. It is loaded from NVM
+      configuration data.
+  REG 0x6414:
+    Name: PCI Power Dissipated Info
+    S1: true
+    Source: Guessed
+    Notes: |
+      This undocumented register is used to set PCIe Power Dissipated
+      information as reported in configuration space. It is loaded from NVM
+      configuration data.
+  REG 0x642C:
+    Name: PCI VPD Request
+    S2: true
+    Source: Guessed
+    Notes: |
+      This undocumented register appears to be used to implement the PCI VPD
+      capability. It is set to the VPD offset which was requested by the host
+      by writing to the VPD register.
+    Bits:
+      16-30: Requested VPD Offset
+  REG 0x6430:
+    Name: PCI VPD Response
+    S2: true
+    Source: Guessed
+    Notes: |
+      This undocumented register appears to be used to implement the PCI VPD
+      capability. Bootcode writes the 32 bits of data loaded from the word
+      requested by REG_PCI_VPD_REQUEST to this register. (If the offset was out
+      of range, an all-ones value is written instead.)
+  REG 0x6434:
+    Name: PCI Vendor/Device ID
+    S1: true
+    S2: true
+    Source: Guessed
+    Notes: |
+      This is the undocumented register used to set the PCI
+      Vendor/Device ID, which is configurable from NVM.
+    Bits:
+      0-15: Device ID
+      16-31: Vendor ID
+  REG 0x6438:
+    Name: PCI Subsystem ID
+    S1: true
+    S2: true
+    Source: Guessed
+    Notes: |
+      This is the undocumented register used to set the PCI
+      Subsystem/Subsystem Vendor ID, which is configurable from NVM.
+    Bits:
+      0-15: Subsystem Vendor ID
+      16-31: Subsystem ID
+  REG 0x643C:
+    Name: PCI Class Code/Revision
+    S1: true
+    Source: Guessed
+    Notes: |
+      This undocumented register is suspected to set the class code and device
+      revision in PCI configuration space. Unconfirmed.
+  REG 0x64C0:
+    Source: Unknown
+    S1: true
+  REG 0x64C8:
+    Source: Unknown
+    S1: true
+  REG 0x64DC:
+    Source: Unknown
+    S1: true
+  REG 0x6504:
+    Name: PCI Serial Number Low
+    Source: Guessed
+    S1: true
+    Notes: |
+      This sets the low 32 bits of the 64-bit device serial number, which is
+      exposed as a PCIe capability in configuration space.
+
+      It is initialized by S1 bootcode to the low 32 bits of the function's MAC
+      address.
+  REG 0x6508:
+    Name: PCI Serial Number High
+    Source: Guessed
+    S1: true
+    Notes: |
+      This sets the high 32 bits of the 64-bit device serial number, which is
+      exposed as a PCIe capability in configuration space.
+
+      It is initialized by S1 bootcode to the high 16 bits of the function's MAC
+      address. The high 16 bits of the register are set to zero.
+  REG 0x6510:
+    Name: PCI Power Budget 0
+    Source: Guessed
+    Notes: |
+      Used to report power budget capability data to the host. The values are
+      loaded from NVM, and up to eight values may be specified. Each value is
+      specified in the lower 16 bits of one of these PCI Power Budget
+      registers. The upper 16 bits are set to zero.
+    Bits:
+      0-15: Power Budget Value
+      16-31: Unknown
+  REG 0x6514:
+    Name: PCI Power Budget 1
+    Source: Guessed
+    Notes: See REG_PCI_POWER_BUDGET_0.
+  REG 0x6518:
+    Name: PCI Power Budget 2
+    Source: Guessed
+    Notes: See REG_PCI_POWER_BUDGET_0.
+  REG 0x651C:
+    Name: PCI Power Budget 3
+    Source: Guessed
+    Notes: See REG_PCI_POWER_BUDGET_0.
+  REG 0x6520:
+    Name: PCI Power Budget 4
+    Source: Guessed
+    Notes: See REG_PCI_POWER_BUDGET_0.
+  REG 0x6524:
+    Name: PCI Power Budget 5
+    Source: Guessed
+    Notes: See REG_PCI_POWER_BUDGET_0.
+  REG 0x6528:
+    Name: PCI Power Budget 6
+    Source: Guessed
+    Notes: See REG_PCI_POWER_BUDGET_0.
+  REG 0x652C:
+    Name: PCI Power Budget 7
+    Source: Guessed
+    Notes: See REG_PCI_POWER_BUDGET_0.
+  REG 0x6530:
+    Source: Unknown
+    S1: true
+  REG 0x6550:
+    Source: Unknown
+    S1: true
+    Notes: |
+      The LSB in this undocumented and unknown register is set if the device is
+      a LOM (LAN-on-Motherboard) design (i.e., builtin to a system and not an
+      expansion card).
+  REG 0x65F4:
+    Source: Unknown
+    S1: true
+  REG 0x6800:
+    Name: GRC Mode Control
+    S1: true
+    Bits:
+      19: Time Sync Mode Enable
+      21: NVRAM Write Enable
+      22: PCIe TL/DL/PL Mapping 1
+      29: PCIe TL/DL/PL Mapping 2
+      31: PCIe TL/DL/PL Mapping 3
+  REG 0x6808:
+    Name: Miscellaneous Local Control
+    S1: true
+    S2: true
+    Bits:
+      8: GPIO 0 Input
+      9: GPIO 1 Input
+      10: GPIO 2 Input
+      11: GPIO 0 Output Enable
+      12: GPIO 1 Output Enable
+      13: GPIO 2 Output Enable
+      14: GPIO 0 Output
+      15: GPIO 1 Output
+      16: GPIO 2 Output
+      24: Auto SEEPROM Access
+  REG 0x680C:
+    Name: Timer
+    S2: true
+  REG 0x6810:
+    Name: RX CPU Event
+    S1: true
+    S2: true
+    Bits:
+      30:
+        Name: VPD Attention
+        Notes: SW Event 12/VPD Attention
+  REG 0x6838:
+    Source: Unknown
+    Notes: |
+      Unknown. Used by PXE agent.
+  REG 0x6844:
+    Name: MDI Control
+    S2: true
+    Notes: |
+      The register manual only mentions this in the changelog; it
+      was removed from the manual in a previous revision. :|
+  REG 0x6894:
+    Name: Fast Boot Program Counter
+    S1: true
+    Bits:
+      0-30:
+        Name: Program Counter
+      31:
+        Name: Enable
+  REG 0x68EC:
+    Name: Expansion ROM Address
+    S1: true
+  REG 0x68F0:
+    Source: Unknown
+    S1: true
+  REG 0x6908:
+    Name: EAV Ref Clock Control
+    S1: true
+    Bits:
+      16-17: Timesync GPIO Mapping
+      18-20: APE GPIO 0 Mapping
+      21-23: APE GPIO 1 Mapping
+      24-26: APE GPIO 2 Mapping
+      27-29: APE GPIO 3 Mapping
+  REG 0x7000:
+    Name: NVM Command
+    S1: true
+    S2: true
+    Bits:
+      3: Done
+      4: Doit
+      5: Wr
+      6: Erase
+      7: First
+      8: Last
+      16: Write Enable
+      17: Write Disable
+  REG 0x7008:
+    Name: NVM Write
+  REG 0x700C:
+    Name: NVM Address
+    S1: true
+    S2: true
+  REG 0x7010:
+    Name: NVM Read
+    S1: true
+    S2: true
+  REG 0x7014:
+    Name: NVM Config 1
+    S1: true
+    S2: true
+    Bits:
+      0: Flash Mode
+      1: Buffer Mode
+      7-10: SPI CLK DIV
+      24: Protect Mode
+      25: Flash Size
+      28-30: Page Size
+  REG 0x7020:
+    Name: Software Arbitration
+    S1: true
+    S2: true
+    Bits:
+      0: Req Set0
+      1: Req Set1
+      2: Req Set2
+      3: Req Set3
+      4: Req Clr0
+      5: Req Clr1
+      6: Req Clr2
+      7: Req Clr3
+      8: Arb Won0
+      9: Arb Won1
+      10: Arb Won2
+      11: Arb Won3
+  REG 0x7024:
+    Name: NVM Access
+    S1: true
+    S2: true
+    Bits:
+      0: Enable
+      1: Write Enable
+  REG 0x7C04:
+    S1: true
+    Source: Unknown
+    Notes: |
+      PCIe-related. tg3 driver calls this `PCIE_TRANSACTION_CFG`, however
+      `REG_GRC_MODE_CONTROL` suggests that the same register space can be
+      reconfigured to address PCIe Transaction Layer, Data Link Layer or
+      Physical Layer registers, so the actual uses of this in the bootcode may
+      not actually be accesses to "`PCIE_TRANSACTION_CFG`".
+  APE 0x0000:
+    Name: Mode
+    Bits:
+      0:
+        Name: Reset
+        Notes: |
+          Used to reset the APE.
+      1:
+        Name: Halt
+        Notes: |
+          APE is halted if set.
+
+          APE seems to sometimes be reset by diagnostic tools by setting this
+          bit then unsetting it again.
+      2:
+        Name: Fast Boot
+      3:
+        Name: Host Diag
+        Notes: |
+          Meaning unknown.
+      18:
+        Name: Memory ECC
+    Notes: |
+      More of these bits can be found in diagnostic utilities, but they don't
+      seem too interesting.
+  APE 0x0004:
+    Name: Status
+    Bits:
+      0:
+        Name: PCIe Reset
+      4:
+        Name: LAN 0 Dstate
+        Notes: |
+          Indicates port is in D3 if set, otherwise the port is in D0-D2.
+      5:
+        Name: Boot Mode
+        Values:
+          0: NVRAM
+          1: Fast
+      7:
+        Name: NVRAM Control Reset
+      9:
+        Name: LAN 1 Dstate
+        Notes: |
+          Indicates port is in D3 if set, otherwise the port is in D0-D2.
+      24-27:
+        Name: Boot Status B
+        Values:
+          0: Prog 0
+          1: Prog 1
+          2: BPC Enter
+          3: Decode
+          4: Read NVRAM Header
+          5: Read Code
+          6: Jump
+          7: Prog 7
+          8: BPC Success
+      28-31:
+        Name: Boot Status A
+        Values:
+          0: None
+          1: NMI Exception
+          2: Fault Exception
+          3: Memory Check
+          4:
+            Name: Unknown 4
+            Notes: |
+              This is the name used for this value by Broadcom diagnostic tools. Yes, really,
+              I am not making this up, they themselves named it "Unknown 4".
+          5: Romloader Disabled
+          6: Magic Number
+          7: APE Init Code
+          8: Header Checksum
+          9: APE Header
+          10: Image Checksum
+          11: NVRAM Checksum
+          12: Invalid Type
+          13: ROM Loader Checksum
+          14: Invalid Unzip Len
+          15: Unknown F
+  APE 0x0008:
+    Name: GPIO Message
+  APE 0x000C:
+    Name: Event
+    Bits:
+      0:
+        Name: 1
+        Notes: Event 1.
+  APE 0x002C:
+    Name: Mode 2
+    Notes: |
+      Expansion for `REG_APE__MODE`, looks like these fields scale with the
+      number of ports.
+
+      Note: For the 5761 this was LOCK_REQ, with LOCK_GRANT at APE 0x004C.
+      Seems like these were moved to `REG_APE__PER_LOCK_{REQ,GRANT}`, maybe when
+      the silicon was expanded to four ports.
+  APE 0x0030:
+    Name: Status 2
+  APE 0x004C:
+    Name: Lock Grant (Obsolete)
+    Notes: |
+      See `REG_APE__MODE_2`; replaced with `REG_APE__PER_LOCK_GRANT`.
+  APE 0x00B0:
+    Notes: Unknown.
+  APE 0x00B8:
+    Name: GPIO
+    Bits:
+      0: PIN0 Unknown
+      1: PIN1 Unknown
+      2: PIN2 Unknown
+      3: PIN3 Unknown
+      8: PIN0 Unknown Out
+      9: PIN1 Unknown Out
+      10: PIN2 Unknown Out
+      11: PIN3 Unknown Out
+      16: PIN0 Mode Output
+      17: PIN1 Mode Output
+      18: PIN2 Mode Output
+      19: PIN3 Mode Output
+  APE 0x00BC:
+    Name: GInt
+    Notes: |
+      TODO: See diag for field info.
+  APE 0x00E8:
+    Name: OTP Control
+    # 0x000_0000 CMD_READ
+    Bits:
+      0: Start
+      21: Prog Enable
+  APE 0x00EC:
+    Name: OTP Status
+    Bits:
+      0: Command Done
+  APE 0x00F0:
+    Name: OTP Address
+    Bits:
+      0-30: Address
+      31: CPU Enable
+  APE 0x00F8:
+    Name: OTP Read Data
+  APE 0x0108:
+    Name: CM3
+    Bits:
+      0-3:
+        Name: CPU Status
+        Values:
+          0: Running
+          1: Halted
+          2: Locked Out
+          3: Sleeping
+          4: Deep Sleep
+          8: Interrupt Pending
+          9: Interrupt Entry
+          10: Interrupt Exit
+          11: Interrupt Return
+    Notes: |
+      Seems CPU control related.
+  APE 0x4000:
+    Name: Seg Sig
+    Notes: APE_APE_MAGIC ('APE!') when all is well.
+  APE 0x400C:
+    Name: FW Status
+    S2: true
+    Bits:
+      8:
+        Name: Ready
+      28-31:
+        Notes: |
+          If this is all-ones, it appears to mean the APE FW is halted.
+  APE 0x4010:
+    Name: FW Features
+    Bits:
+      1: NCSI
+  APE 0x4014:
+    Notes: Unknown.
+  APE 0x4018:
+    Name: FW Version
+    Bits:
+      0-7: Build
+      8-15: Revision
+      16-23: Minor
+      24-31: Major
+  APE 0x401C:
+    Name: Seg Message Buffer Offset
+    Notes: |
+      Specifies the offset of a scratchpad area, relative to the
+      start of the APE SHM area (i.e., relative to APE_REG(0x4000)).
+  APE 0x4020:
+    Name: Seg Message Buffer Length
+    Notes: |
+      Specifies the size of the scratchpad area in bytes.
+  APE 0x4024:
+    Notes: Unknown. Bootcode related.
+  APE 0x4028:
+    Notes: Unknown. Bootcode related.
+  APE 0x4100:
+    Name: RCPU Seg Sig
+    S2: true
+    Notes: |
+      Set to APE_RCPU_MAGIC ('RCPU') by RX CPU.
+  APE 0x4104:
+    Name: RCPU Seg Length
+    S2: true
+    Notes: |
+      Set to 0x34.
+  APE 0x4108:
+    Name: RCPU Init Count
+    S2: true
+    Notes: |
+      Incremented by RX CPU every boot.
+  APE 0x410C:
+    Name: RCPU FW Version
+    S2: true
+    Notes: |
+      Set to the bootcode version. e.g. 0x0127 -> v1.39.
+  APE 0x4110:
+    Name: RCPU Cfg Feature
+    S2: true
+    Notes: |
+      Set to GEN_CFG_FEATURE (GEN 1E4).
+  APE 0x4114:
+    Name: RCPU PCI Vendor Device ID
+    S2: true
+    Notes: |
+      Set to PCI Vendor/Device ID by S2.
+  APE 0x4118:
+    Name: RCPU PCI Subsystem ID
+    S2: true
+    Notes: |
+      Set to PCI Subsystem Vendor/Subsystem ID by S2.
+  APE 0x411C:
+    Notes: |
+      Unknown. Incremented by frobnicating routine.
+  APE 0x4120:
+    Notes: |
+      Unknown. Written by frobnicating routine.
+  APE 0x4124:
+    Notes: |
+      Unknown. `REG_APE__FW_STATUS` is copied to this by the frobnicating routine.
+  APE 0x4128:
+    Name: RCPU Cfg Hardware
+    S2: true
+    Notes: |
+      Set from GEN_CFG_HW (CFG 2, GEN 1E8).
+  APE 0x412C:
+    Name: RCPU Cfg Hardware 2
+    S2: true
+    Notes: |
+      Set from GEN_CFG_HW_2 (GEN 2A8).
+  APE 0x4130:
+    Name: RCPU CPMU Status
+    S2: true
+    Notes: |
+      Set from GEN_CPMU_STATUS.
+  APE 0x4200:
+    Name: Host Seg Sig
+    Notes: |
+      Set to APE_HOST_MAGIC ('HOST') to indicate the section is valid.
+  APE 0x4204:
+    Name: Host Seg Len
+    Notes: |
+      Set to 0x20.
+  APE 0x4208:
+    Name: Host Init Count
+    Notes: |
+      Incremented by host on every initialization.
+  APE 0x420C:
+    Name: Host Driver ID
+    Notes: |
+      Linux sets this to 0xF0MM_mm00, where M is the major version
+      of Linux and m is the minor version.
+  APE 0x4210:
+    Name: Host Behavior
+    Bits:
+      0:
+        Name: No PHYLock
+        Notes: |
+          tg3 always sets this.
+  APE 0x4214:
+    Name: Heartbeat Interval
+    Notes: |
+      In milliseconds. Set to 0 to disable heartbeating.
+  APE 0x4218:
+    Name: Heartbeat Count
+  APE 0x421C:
+    Name: Host Driver State
+    Values:
+      1: Start
+      2: Unload
+      3: WOL
+  APE 0x4224:
+    Name: WOL Speed
+    Values:
+      0x8000: Auto
+  APE 0x4300:
+    Name: Event Status
+    Bits:
+      4: Driver Event
+      8-15:
+        Name: Command
+        Notes: |
+          The start/end bits of this field are a very rough guess based on
+          available defines.
+        Values:
+          0x05: State Change
+          0x16: Scratchpad Read
+          0x17: Scratchpad Write
+      16-18:
+        Name: State
+        Notes: |
+          The start/end bits of this field are a very rough guess based on
+          available defines.
+        Values:
+          0x1: Start
+          0x2: Unload
+          0x3: WOL
+          0x4: Suspend
+      31: Pending
+  APE 0x4308:
+    Name: Prot Magic
+    S1: true
+    Notes: |
+      This is set to APE_PROT_MAGIC ('PROT') on all functions.
+      If it is 'PROT', the following fields (MAC0_HIGH/LOW) are valid
+  APE 0x4314:
+    Name: Prot MAC0 High
+    S1: true
+    Notes: |
+      High 16 bits of MAC address 0. Only valid if `REG_APE__PROT_MAGIC`
+      is set to APE_PROT_MAGIC *and* the MAC address is nonzero.
+  APE 0x4318:
+    Name: Prot MAC0 Low
+    S1: true
+    Notes: |
+      Low 16 bits of MAC address 0.
+  APE 0x4800:
+    Name: NCSI Sig
+    Notes: |
+      Set to NCSI_MAGIC ('NCSI') by APE firmware.
+      
+      NOTE: all words in the NCSI section are available in the function 0
+      SHM area only.
+  APE 0x4810:
+    Name: NCSI Build Time
+    Notes: |
+      ASCII string spanning three 32-bit words. Unused trailing bytes
+      are set to zero.
+  APE 0x4814:
+    Name: NCSI Build Time 2
+  APE 0x4818:
+    Name: NCSI Build Time 3
+  APE 0x481C:
+    Name: NCSI Build Date
+    Notes: |
+      ASCII string spanning three 32-bit words. Unused trailing bytes
+      are set to zero.
+  APE 0x4820:
+    Name: NCSI Build Date 2
+  APE 0x4824:
+    Name: NCSI Build Date 3
+  APE 0x4890:
+    Name: Chip ID
+    S1: true
+    Notes: |
+      The APE code copies the contents of REG_CHIP_ID to this word.
+  APE 0x8400:
+    Name: Per Lock Request PHY0
+    S1: true
+    S2: true
+    Notes: |
+      This register, and the following Per Lock Request registers work the
+      same. The tg3 driver uses 0x0000_1000 (APELOCK_PER_REQ_DRIVER)
+      for PHY ports (or always for function 0).
+      
+      For non-PHY ports on non-zero functions, the driver uses
+        0x0000_0002: Function 1
+        0x0000_0004: Function 2
+        0x0000_0008: Function 3
+
+      0x0000_0010 is used by bootcode.
+
+  APE 0x8404:
+    Name: Per Lock Request GRC
+  APE 0x8408:
+    Name: Per Lock Request PHY1
+    S1: true
+    S2: true
+  APE 0x840C:
+    Name: Per Lock Request PHY2
+    S1: true
+    S2: true
+  APE 0x8410:
+    Name: Per Lock Request MEM
+  APE 0x8414:
+    Name: Per Lock Request PHY3
+    S1: true
+    S2: true
+  APE 0x8418:
+    Name: Per Lock Request Port6
+  APE 0x841C:
+    Name: Per Lock Request GPIO
+
+  APE 0x8420:
+    Name: Per Lock Grant PHY0
+    S1: true
+    S2: true
+  APE 0x8424:
+    Name: Per Lock Grant GRC
+  APE 0x8428:
+    Name: Per Lock Grant PHY1
+    S1: true
+    S2: true
+  APE 0x842C:
+    Name: Per Lock Grant PHY2
+    S1: true
+    S2: true
+  APE 0x8430:
+    Name: Per Lock Grant MEM
+  APE 0x8434:
+    Name: Per Lock Grant PHY3
+    S1: true
+    S2: true
+  APE 0x8438:
+    Name: Per Lock Grant Port6
+  APE 0x843C:
+    Name: Per Lock Grant GPIO
+
+  PORT 0:
+    Name: PHY0
+    Source: TG3
+    S1: true
+    S2: true
+  PORT 1:
+    Name: GRC
+    Source: TG3
+  PORT 2:
+    Name: PHY1
+    Source: TG3
+    S1: true
+    S2: true
+  PORT 3:
+    Name: PHY2
+    Source: TG3
+    S1: true
+    S2: true
+  PORT 4:
+    Name: MEM
+    Source: TG3
+  PORT 5:
+    Name: PHY3
+    Source: TG3
+    S1: true
+    S2: true
+  PORT 6:
+    Notes: Unknown. Reserved?
+    Source: TG3
+  PORT 7:
+    Name: GPIO
+    Source: TG3
+
+  MII 0x00:
+    Name: Control
+    S1: true
+    Bits:
+      5: Unidirectional Mode [GPHY only]
+      6: Speed Select MSB
+      7: Collision Test Mode
+      8: Full Duplex Mode
+      9: Restart Autonegotiation
+      10: Isolate [GPHY only]
+      11: Power Down
+      12: Auto Negotiation Enable
+      13:
+        Name: Speed Select LSB
+        Notes: |
+          This bit is combined with Speed Select MSB to form the Speed Select field.
+        Values:
+          0: 10Mbit/s
+          1: 100Mbit/s
+          2: 1000Mbit/s
+          3: Reserved
+      14: Loopback Mode
+      15: Reset
+  MII 0x01:
+    Name: Status
+    Bits:
+      0: Extended Capabilities Supported
+      1: Jabber Detected
+      2: Link OK
+      3: Auto Negotiation Capable
+      4: Remote Fault Detected
+      5: Auto Negotiation Complete
+      6: MF Preamble Suppression
+      7: Unidirectional Capable [GPHY only]
+      8: Extended Status Supported
+      9: 100BASE-T2 Half Duplex Capable
+      10: 100BASE-T2 Full Duplex Capable
+      11: 10BASE-T Half Duplex Capable
+      12: 10BASE-T Full Duplex Capable
+      13: 100BASE-X Half Duplex Capable
+      14: 100BASE-X Full Duplex Capable
+      15: 100BASE-T4 Capable
+  MII 0x02:
+    Name: PHY ID High
+    Bits:
+      0-15:
+        Name: OUI High
+        Notes: |
+          Contains bits 3:18 of an OUI.
+  MII 0x03:
+    Name: PHY ID Low
+    Bits:
+      0-3:
+        Name: Revision
+      4-9:
+        Name: Model
+      10-15:
+        Name: OUI Low
+        Notes: |
+          Bits 19:24 of an OUI.
+  MII 0x04:
+    Name: Autonegotiation Advertisement
+    Notes: |
+      Bits in this register indicate what capability bits are advertised to the
+      link partner.
+    Bits:
+      0-4:
+        Name: Protocol Select
+        Values:
+          1: IEEE 802.3
+      5: 10BASE-T Half Duplex Capable
+      6: 10BASE-T Full Duplex Capable
+      7: 100BASE-TX Half Duplex Capable
+      8: 100BASE-TX Full Duplex Capable
+      9: 100BASE-T4 Capable
+      10: Pause Capable
+      11: Asymmetric Pause Capable
+      13: Remote Fault
+      15: Next Page
+  MII 0x05:
+    Name: Autonegotiation Link Partner Ability Base Page
+    Notes: |
+      Bits in this register indicate the capabilities of the link partner.
+    Bits:
+      0-4: Protocol Selector
+      5: 10BASE-T Half Duplex Capable
+      6: 10BASE-T Full Duplex Capable
+      7: 100BASE-TX Half Duplex Capable
+      8: 100BASE-TX Full Duplex Capable
+      9: 100BASE-T4 Capable
+      10: Pause Capable
+      11: Asymmetric Pause Capable
+      13: Remote Fault
+      14: Acknowledge
+      15: Next Page
+  MII 0x06:
+    Name: Autonegotiation Expansion
+    Bits:
+      0: Link Partner Autonegotiation Capable
+      1: Page Received
+      2: Next Page Capable
+      3: Link Partner Next Page Capable
+      4: Parallel Detection Fault
+      5:
+        Name: Next Page Receive Location
+        Values:
+          0: Next pages stored in register 0x05
+          1: Next pages stored in register 0x08
+      6: Next Page Receive Location Capable
+  MII 0x07:
+    Name: Autonegotiation Next Page Transmit
+    Bits:
+      0-10: Code Field
+      11: Toggle
+      12: Acknowledge 2
+      13: Message Page
+      15: Next Page
+  MII 0x08:
+    Name: Autonegotiation Link Partner Ability Next Page
+    Bits:
+      0-10: Code Field
+      11: Toggle 2
+      12: Acknowledge 2
+      13: Message Page
+      14: Acknowledge 3
+      15: Next Page
+  MII 0x09:
+    Name: 1000BASE-T Control
+    Bits:
+      8: Advertise 1000BASE-T Half Duplex
+      9: Advertise 1000BASE-T Full Duplex
+      10: Repeater DTE
+      11: Master Slave Config Value
+      12: Master Slave Config Enable
+      13-15: Test Mode
+  MII 0x0A:
+    Name: 1000BASE-T Status
+    Bits:
+      0-7: Idle Error Count
+      10: Link Partner 1000BASE-T Half Duplex Capable
+      11: Link Partner 1000BASE-T Full Duplex Capable
+      12: Remote Receiver Status
+      13: Local Receiver Status
+      14: Master Slave Config Resolution
+      15: Master Slave Config Fault
+  MII 0x0E:
+    Name: BroadReach LRE Access
+    Notes: WTH is this.
+    Bits:
+      0: LRE Register Access Status
+      1: LRE Register Override Value
+      2: Enable LRE Register Access Override
+  MII 0x0F:
+    Name: IEEE Extended Status
+    Bits:
+      12: 1000BASE-T Half Duplex Capable
+      13: 1000BASE-T Full Duplex Capable
+      14: 1000BASE-X Half Duplex Capable
+      15: 1000BASE-X Half Duplex Capable
+  MII 0x10:
+    Name: "[GPHY] PHY Extended Control"
+    Bits:
+      0:
+        Name: GMII/RGMII FIFO Elasticity Bit 0
+        Values:
+          0: Support 5k packets
+          1: Support 10k packets
+          2: Support 15k packets
+          3: Support 20k packets
+      1: Unidirectional Enable
+      2: Block TXEN Mode
+      3: Force LEDs Off
+      4: Force LEDs On
+      5: Enable LED Traffic Mode
+      6: Reset Scrambler
+      7: Bypass Alignment
+      8: Bypass NRZI MLT3
+      9: Bypass Scrambler
+      10: Bypass Encoder
+      11: Force Interrupt
+      12: Interrupt Disable
+      13: Transmit Disable
+      14: Disable Automatic MDI Crossover
+      15: MAC PHY Interface Mode
+  MII 0x000010:
+    Name: "[SERDES] 1000BASE-X Control 1"
+    Bits:
+      0: Fiber Mode 1000BASE-X
+      1: TBI Interface
+      2: Signal Detect Enable
+      3: Invert Signal Detect
+      4: Autodetect Enable
+      5: SGMII MSTR Mode
+      6: Disable PLL Powerdown
+      7: CRC Checker Disable
+      8: Comma Detect Enable
+      9: Zero Comma Detect Phase
+      10: Remote Loopback
+      11: Select RX Packets for Counters
+      12: SERDES TX Ampl Override
+      13: MSTR MDIO PHY Sel
+      14: DIS SD Filter
+  MII 0x000011:
+    Name: "[SERDES] 1000BASE-X Control 2"
+    Bits:
+      0: Enable Parallel Detection
+      1: Disable False Link
+      2: Filter Force Link
+      3: Enable Autonegotiation Error Timer
+      4: Disable Remote Fault Sensing
+      5: Force Transmit Data on TX Side
+      6: Autonegotiation Fast Timers
+      7: Disable Carrier Extend
+      8: Disable TRRR Generation
+      9: Bypass PCS RX
+      10: Bypass PCS TX
+      11: Test Counters
+      12: TX Packet Sequence Test
+      13: TX Idle Jam Sequence Test
+      14: CLR BER Counter
+      15: Disable Extend FDX
+  MII 0x000012:
+    Name: "[SERDES] 1000BASE-X Control 3"
+    Bits:
+      0: TX FIFO Reset
+      1-2: FIFO Elasticity TX/RX
+      3: Early Preamble TX
+      4: Early Preamble RX
+      5: Frequency Lock Elasticity RX
+      6: Frequency Lock Elasticity TX
+      7: Bypass TX FIFO 1000
+      8: Force TX FIFO On
+      9: Block TXEN Mode
+      10: Jam False Carrier Mode
+      11: External PHY CRS Mode
+      12: Invert External PHY CRS
+      13: Disable TX CRS
+      14: RXFIFO GMII Reset
+      15: Disable Packet Alignment
+  MII 0x000014:
+    Name: "[SERDES] 1000BASE-X Status 1"
+    Bits:
+      0: SGMII Mode
+      1: Link Status
+      2: Duplex Status
+      3-4: Speed Status
+      5: Pause Resolution TX Side
+      6: Pause Resolution RX Side
+      7: Link Status Change
+      8: Early End Extension Detected
+      9: Carrier Extension Error Detected
+      10: RX Error Detected
+      11: TX Error Detected
+      12: CRC Error Detected
+      13: False Carrier Detected
+      14: RX FIFO Error Detected
+      15: TX FIFO Error Detected
+  MII 0x000015:
+    Name: "[SERDES] 1000BASE-X Status 2"
+    Bits:
+      0: Autonegotiation Enable State
+      6: Link Down Sync Loss
+      10: Sync Status OK
+      11: Sync Status Fail
+      12: SGMII Selector Mismatch
+      13: Autonegotiation Res Error
+      14: Consistency Mismatch
+      15: SGMII Mode Change
+  MII 0x000016:
+    Name: "[SERDES] 1000BASE-X Status 3"
+    Bits:
+      4: Analog Signal Detect Change
+      5: Analog Signal Detect
+      6: Signal Detect
+      7: SD Filter Change
+      8: SD Mux
+      9: SD Filter
+      10: Latch Link Down
+  MII 0x000210:
+    Name: "[SERDES] FX Control 1"
+    Bits:
+      0: FX100 Enable
+      1: FX100 Full Duplex
+      2: FX100 Autodetect Enable
+      3: FX100 Far End Fault Enable
+      4: FX100 Force RX Qual
+      5: FX100 Disable RX Qual
+      6-9: FX100 RX Data Selector
+      10: FX100 Autodetect Timer Selector
+      11: Fiber Auto Power Down Disable
+      12: Fiber Auto Power Down Enable
+      13: Fiber Auto Power Down Sleep
+      14: Fiber Auto Power Down Wakeup
+  MII 0x000211:
+    Name: "[SERDES] FX Control 2"
+    Bits:
+      0: Extend Packet Size
+  MII 0x000212:
+    Name: "[SERDES] FX Control 3"
+    Bits:
+      0: FX100 Fast Timer
+      1: FX100 Fast Unlock Timer
+      2: FX100 Force Lock
+      3: FX100 Force Link
+      4: FX100 Bypass Alignment
+      5: FX100 Bypass Encoder
+      6: FX100 Bypass NRZ
+  MII 0x000213:
+    Name: "[SERDES] FX Status 1"
+    Bits:
+      0: FX100 Link
+      1: FX100 Locked
+      2: FX100 Faulting
+      3: FX100 Lost Lock
+      4: FX100 Lock Timer Expired
+      5: FX100 RX Error Detected
+      6: FX100 TX Error Detected
+      7: FX100 False Carrier Detected
+      8: FX100 Bad ESD Detected
+      9: FX100 Link Status Change
+  MII 0x000310:
+    Name: "[SERDES] Analog TX 1"
+    Bits:
+      0: IDDQ
+      1: Reset
+      2: Loopback
+      3: Driver Idle
+      4: Boost Mode
+      5: Reg Edge Selector
+      6: RX ClockP
+      7-10: Preemph Coefficient
+      12-15: Driver Current
+  MII 0x000311:
+    Name: "[SERDES] Analog TX 2"
+    Bits:
+      0-3: Predriver Current
+  MII 0x000312:
+    Name: "[SERDES] Analog TX Amp"
+    Bits:
+      1-4: Driver Current
+      5-8: Predriver Current
+      9: Boost Mode
+      14: Predriver Swing Boost
+      15: Driver Full Range
+  MII 0x000313:
+    Name: "[SERDES] Analog RX 1"
+    Bits:
+      0: IDDQ
+      7: Reg Edge Select
+      8: Loopback
+      9: Signal Detect Enable
+      10-12: SD Threshold
+  MII 0x000314:
+    Name: "[SERDES] Analog RX 2"
+    Bits:
+      3: 100FX Enable
+  MII 0x000318:
+    Name: "[SERDES] Analog PLL"
+    Bits:
+      0: PLL Power Down
+  MII 0x000018:
+    Name: "[SERDES] GE PRBS Control"
+    Bits:
+      0: PRBS Enable
+      1: Invert PRBS Order
+      2-3: PRBS Order
+  MII 0x000019:
+    Name: "[SERDES] GE PRBS Status"
+    Bits:
+      0-10: PRBS Errors
+      11: Lock
+      12: Unlock
+  MII 0x11:
+    Name: "PHY Extended Status"
+    Bits:
+      0: MLT3 Code Error Detected
+      1: Lock Error Detected
+      2: Transmit Error Detected
+      3: Receive Error Detected
+      4: Bad ESD Detected
+      5: Bad SSD Detected
+      6: Carrier Extension Error Detected
+      7: CRC Error Detected
+      8: Link Status
+      9: Locked
+      10: Local Receiver Status
+      11: Remote Receiver Status
+      12: Interrupt Status
+      13: MDI Crossover State
+      14: Wirespeed Downgrade
+      15: Autonegotiation Base Page Selector Field Mismatch
+  MII 0x12:
+    Name: "Receive Error Counter"
+    Bits:
+      0-15: Receive Error Counter
+  MII 0x13:
+    Name: "False Carrier Sense Counter"
+    Bits:
+      0-7: False Carrier Sense Counter
+      8-15: SERDES BER Counter
+  MII 0x14:
+    Name: "Local Remote Receiver Not OK Counter"
+    Bits:
+      0-7: Remote Receiver Not OK Counter
+      8-15: Local Receiver Not OK Counter
+  MII 0x80101A:
+    Name: "[Port 0] Unknown (BLOCK 0x8010):0x1A"
+    S1: true
+    Source: Unknown
+    Notes: |
+      Unknown, mysterious "port 0" MII register twiddled during stage1 init.
+
+      The port 0 twiddles are performed on Function 0 only.
+    Bits:
+      14:
+        Name: Unknown
+        Notes: |
+          This is set before mutating (BLOCK 0x8610):0x15 during the stage1
+          init, and is masked off again afterwards.
+  MII 0x861015:
+    Name: "[Port 0] Unknown (BLOCK 0x8610):0x15"
+    S1: true
+    Source: Unknown
+    Notes: |
+      Unknown, mysterious "port 0" MII register twiddled during stage1 init.
+    Bits:
+      0-1: Unconditionally set to 2 during stage1 init
+  MII 0x861017:
+    Name: "[Port 0] Unknown (BLOCK 0x8610):0x17"
+    S1: true
+    Source: Unknown
+    Notes: |
+      Unknown, mysterious "port 0" MII register twiddled during stage1 init.
+
+      This is set to 0xC7B0 if GEN_CFG_3 bits 30-31 are zero, 0x77B0 if they are 1,
+      and 0x07B0 if they are 2.
+  MII 0x861018:
+    Name: "[Port 0] Unknown (BLOCK 0x8610):0x18"
+    S1: true
+    Source: Unknown
+    Notes: |
+      Unknown, mysterious "port 0" MII register twiddled during stage1 init.
+
+      This is set to 0x0077 if GEN_CFG_3 bits 9-10 equal 1, and set to 0x0007
+      if it equals 0. Otherwise it is not changed.
+
+  MII 0xFFFFF018:
+    Name: Auxillary Control
+    Notes: |
+      "0xFFFFFsRR" numbering indicates use of the shadow register selector,
+      where s indicates the shadow register selector value, and R is the
+      register number.
+    Bits:
+      0-2:
+        Name: Shadow Register Selector
+        Values:
+          0: Normal Operation
+          1: 10BASE-T Registers
+          2: Power Control Registers
+          3: IP Phone Registers
+          4: Miscellaneous Test Registers 1
+          5: Miscellaneous Test Registers 2
+          6: Manual IP Phone Seed Register
+          7: Miscellaneous Control Registers
+      3: Diagnostic Mode
+      4-5: 100TX Edge Rate Control
+      6: Disable Inverse PRF
+      7: Disable Partial Response Filter
+      8-9: Receive Slicing
+      10: Transmit 6dB Coding
+      11: Enable SM DSP Clock
+      12-13: 1000T Edge Rate Control
+      14: Extended Packet Length
+      15: External Loopback
+  MII 0xFFFFF118:
+    Name: 10BASE-T
+    Bits:
+      0-2: Shadow Register Selector
+      3: 10BASE-T Polarity Error Count Max
+      4: 10BASE-T No Dribble
+      5: SQE Enable Mode
+      6: 10BASE-T Echo Mode
+      7: 10BASE-T Signal Detect Threshold
+      8: 10BASE-T Signal Detect Autoswitch
+      9: Jabber Disable
+      10: Class A/B Line Driver Select
+      11: 10BASE-T TXC Invert Mode
+      12: Block RXDV Extension
+      13: Polarity Error
+      14: EOF Error
+      15: Manchester Code Error
+  MII 0xFFFFF218:
+    Name: Power/MII Control
+    Bits:
+      0-2: Shadow Register Selector
+      5: Super Isolate
+  MII 0xFFFFF318:
+    Name: IP Phone
+    Bits:
+      0-2: Shadow Register Selector
+      3: ...
+      4: ...
+      5: Enable IP Phone Detection
+      6: Extended Link Pulse Width Enable
+      7: IP Phone Window Mode
+      8: Restart Autonegotiation
+      9: Alternate Random Seed Generation
+      10-14: Extended Link Pulse Width Counter
+      15: Non-Stop IP Phone Detect Mode
+  MII 0xFFFFF418:
+    Name: Miscellaneous Test 1
+    Bits:
+      0-2: Shadow Register Selector
+      3: Half Out
+      4: Swap RX MDIX
+      5: 10BASE-T Bypass CRS
+      6: 10BASE-T Bypass ADC
+      7: 10BASE-T Clock Reset Enable
+      8: 10BASE-T Idle Bypass
+      9: 10BASE-T Polarity Bypass
+      10: 10BASE-T Wakeup
+      11: Remote Loopback Tristate
+      12: Block 10BASE-T Restart Autonegotiation
+      13: Enable Dedicated 10BASE-T DLL Bypass Clock
+      14: TDK Fix Enable
+      15: Remote Loopback Enable
+  MII 0xFFFFF518:
+    Name: Miscellaneous Test 2
+    Bits:
+      0-2: Shadow Register Selector
+      3: Enable PWRDNTDAC
+      4: Enable Force MDIX
+      5: Enable EC as NEXT
+      6: Old PCS Encoding TX
+      7: Old PCS Encoding RX
+      8: Disable Auto Encoding Correction
+      10-11: ENC Error Scale
+      12: 100TX Class A/B Enable
+      13: Class A/B DVT Enable
+      14: ADCFIFO TX Fix
+      15: Copper Energy Detect Override
+  MII 0xFFFFF618:
+    Name: Manual IP Phone Seed
+    Bits:
+      0-2: Shadow Register Selector
+      3-13: Local IP Phone Seed
+      15: Writable IP Phone Seed
+  MII 0xFFFF718:
+    Name: Miscellaneous Control
+    Bits:
+      0-2: Shadow Register Selector
+      3: MDIO All PHY Select
+      4: Wirespeed Enable
+      5: RGMII Out Of Band Status Disable
+      6: RGMII RXER Mode
+      7: RGMII Mode
+      8: RGMII Timing Mode
+      9: Force Auto MDIX Mode
+      10: Bypass Wirespeed Timer
+      11: Packet Counter Mode
+      12-14: Shadow Register Read Selector
+      15: Write Enable
+  MII 0x19:
+    Name: Auxillary Status Summary
+    Bits:
+      0: Pause Resolution — Transmit Direction
+      1: Pause Resolution — Receive Direction
+      2: Link Status
+      3: Link Partner Next Page Capable
+      4: Link Partner Autonegotiation Capable
+      5: Page Received
+      6: Remote Fault
+      7: Parallel Detection Fault
+      8-10: Autonegotiation HCD
+      11: Autonegotiation Next Page Wait
+      12: Autonegotiation Ability Detect
+      13: Autonegotiation ACK Detect
+      14: Autonegotiation Complete ACK
+      15: Autonegotiation Complete
+  MII 0x1A:
+    Name: Interrupt Status
+    Bits:
+      0: CRC Error
+      1: Link Status Change
+      2: Link Speed Change
+      3: Duplex Mode Change
+      4: Local Receiver Status Change
+      5: Remote Receiver Status Change
+      6: Scrambler Sync Error
+      7: Negotiated Unsupported HCD
+      8: No HCD
+      9: HCD No Link
+      10: Autonegotiation Page RX
+      11: Exceeded Low Counter Threshold
+      12: Exceeded High Counter Threshold
+      12: MDIX Status Change
+      14: Illegal Pair Swap
+      15: IP Status Change
+  MII 0x1B:
+    Name: Interrupt Mask
+    Bits:
+      0-15: Interrupt Mask Vector
+  MII 0xFFFF001C:
+    Name: Cabletron LED Selector
+    Bits:
+      0-7: Cabletron LED Register
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF011C:
+    Name: DLL Selection
+    Bits:
+      0-5: High Quality Clock Test Mode
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF021C:
+    Name: Spare Control 1
+    Bits:
+      0: Link LED Mode
+      1: Lost Token Fix Disable
+      2: Bicolor Link Speed LED Mode
+      4: 100FX Mode Copper Path
+      5: Use Filtered SD
+      6: CFC Init Filter Enable
+      7: Invert SD Pin
+      8: Force SD On
+      9: SD Status
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF031C:
+    Name: Clock Alignment Control Register
+    Bits:
+      0-3: Delay Line Selector
+      4-6: Delay Value
+      7: RX Clock Alignment Strobe
+      8: GMII Clock Alignment Strobe
+      9: GTXCLK Delay Bypass Disable
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF041C:
+    Name: Spare Control 2
+    Bits:
+      0: ...
+      1: Energy Detect on Interrupt Pin
+      2-4: Wirespeed Retry Limit
+      5: ...
+      6: Disable PHYA2
+      7: ...
+      8: Wirespeed Retry Disable
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF051C:
+    Name: Spare Control 3
+    Bits:
+      0: CLK125 Output Enable
+      1: Auto Power Down DLL Off Disable
+      2: SIGDET Deassert Timer Lengthen
+      3: Disable Low Power 10BASE-T Link Mode
+      4: Low Power ENC Disable
+      5: SD/Energy Detect Change Mux Select
+      6: TXC Off Enable
+      7: 10BASE-T Carrier Reject Filter Enable
+      8: TXC/RXC Disable During Auto Power Down
+      9: DLL Lock Enable During Auto Power Down
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF061C:
+    Name: TDR Control 1
+    Bits:
+      0: TDR Start/Done
+      1-2: RX Channel Select
+      3-4: TX Channel Select
+      5-7: Test Pulse Size
+      8: TDR Link Time Out
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF071C:
+    Name: TDR Control 2
+    Bits:
+      0: TDR Mode Enable
+      1: External PHY
+      2: External PHY No Autonegotiation
+      3: Master Mode
+      4: FEXT
+      5: Fast Timers
+      6: Phase Status Clear
+      7: Phase Status
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF081C:
+    Name: LED Status
+    Bits:
+      0: Quality LED
+      1: Receive LED
+      2: Transmit LED
+      3-4: Link Speed
+      6: Interrupt
+      7: FDXLED
+      8: Slave
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF091C:
+    Name: LED Control
+    Bits:
+      0-1: Link Utilization LED Selector (Nortel LED)
+      2: Remote Fault LED Enable
+      3: Activity LED Enable
+      4: Activity Link LED LSB
+      5: Override GBIC LED Mode
+      6: External SERDES In Use LED Mode
+      8: Activity Link LED MSB
+      9: Collision Blink LED Mode
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF151C:
+    Name: SGMII Slave
+    Bits:
+      0: SGMII Slave Autodetection
+      1: SGMII Slave Mode
+      2: ...
+      3-4: Mode Select
+      5: SERDES Link Status Change
+      6-7: SERDES Speed
+      8: SERDES Duplex
+      9: SERDES Link
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF161C:
+    Name: Miscellaneous 1000BASE-X Control 2
+    Bits:
+      0: FIFO Elasticity 1
+      1: SERDES Autonegotiation Parallel Detect Enable
+      2: Disable False Link
+      3: Filter Forced Link
+      4: Snoop Mode
+      5: Enable Amplitude Signal Detect
+      6: Register Write Selector
+      7: Restart SERDES Autonegotiation
+      8: Enable Remote Access
+      9: Remote Copper Mode
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF171C:
+    Name: Miscellaneous 1000BASE-X Control
+    Bits:
+      0: Disable 1000BASE-X Power Down
+      1: Fiber Superisolate
+      2: Disable SERDES Amplitude Switching
+      3: Force XMIT=DATA
+      4: Disable GBIC Updates
+      5: Signal Detect Enable
+      6: SERDES Transmit Disable
+      7: Fiber Auto Powerdown Sleep Time
+      8: Fiber Auto Powerdown Wakeup Time
+      9: Qualify Disable Carrier Extend and Disable TRRR with Full Duplex
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF181C:
+    Name: Autodetect SGMII/GBIC
+    Bits:
+      0: Autodetect SGMII/GBIC Mode
+      1: SGMII 10/100 RX FIFO Frequency Lock Mode
+      2: GMII FIFO Elasticity 0
+      3: Media Converter Mode
+      4: Enable CRC Fragment Errors
+      5: SD Amplitude Status Changed
+      6: SD Amplitude Status
+      7: Fiber SD
+      8: XMIT=DATA
+      9: SERDES Resolution Fault
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF191C:
+    Name: Test 1000BASE-X
+    Bits:
+      0: Zero Comma Detect Phase
+      1: Bypass PCS Transmit
+      2: Bypass PCS Receive
+      3: Force TX FIFO On
+      5: Block TXEN Mode
+      6: RX FIFO SGMII 10/100 Early Preamble Mode
+      7: TX FIFO SGMII 10/100 Early Preamble Mode
+      8: DLL Bypass Clock Enable
+      9: Use Copper Speed
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF1A1C:
+    Name: Autonegotiation 1000BASE-X Debug
+    Bits:
+      0: AN Enable
+      1: Error State
+      2: Ability Detect State
+      3: Acknowledge Detect State
+      4: Complete Acknowledge State
+      5: Idle Detect State
+      6: Link Went Down from Loss of Sync
+      7: Sync Status Detected
+      8: RUDI Invalid
+      9: Consistency Mismatch
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF1B1C:
+    Name: Auxillary 1000BASE-X Control
+    Bits:
+      0: Disable CRC Checker
+      1: FIFO Elasticity 0
+      2: Comma Detect Enable
+      3: Autonegotiation Error Timer Enable
+      4: Disable Remote Fault Sensing
+      5: Disable TRRR
+      6: Disable Carrier Extend
+      7: Jam False Carrier Mode
+      8: Autonegotiation Fast Timers
+      9: Use SERDES Mode Counters
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF1C1C:
+    Name: Auxillary 1000BASE-X Status
+    Bits:
+      0: Pause Resolution Transmit Side
+      1: Pause Resolution Receive Side
+      2: SERDES Link
+      3: Current Operating Duplex Mode
+      4: Autonegotiation Page Received
+      5-6: Link Partner Remote Fault
+      7: Autonegotiation Resolution Eror
+      8: SGMII Selector Mismatch
+      9: SERDES Link Status Change
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF1D1C:
+    Name: Miscellaneous 1000BASE-X Status
+    Bits:
+      0: Early End Extension Detected
+      1: Carrier Extend Error Detected
+      2: Receive Error Detected
+      3: Transmit Error Detected
+      4: CRC Error Detected
+      5: False Carrier Detected RX Side
+      6: False Carrier Detected TX Side
+      7: Bad FIFO Pointer
+      8: RX FIFO Error
+      9: TX FIFO Error
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF1E1C:
+    Name: Autodetect Medium
+    Bits:
+      0: Autodetect Medium Enable
+      1: Autodetect Medium Priority
+      2: Autodetect Medium Default
+      3: Signal Detect Enable Override
+      4: Fiber Auto Power Down Mode
+      5: ...
+      6: Fiber LED Mode
+      7: Fiber In Use LED Mode
+      8: Invert Fiber SD From PIN
+      9: Second SERDES Autodetection
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF1F1C:
+    Name: Mode Control
+    Bits:
+      0: Enable 1000BASE-X Registers
+      1-2: Mode Select
+      3: SERDES Capable
+      4: Fiber Signal
+      5: Copper Energy Detect
+      6: SERDES Link
+      7: Copper Link
+      8: Mode Select Change
+      9: Dual SERDES Capable
+      10-14: Shadow Register Selector
+      15: Write Enable
+  MII 0xFFFF001D:
+    Name: Master/Slave Seed
+    Bits:
+      0-10: Local Master/Slave Seed Value
+      11: Link Partner Manual M/S Config Enable
+      12: Link Partner Manual M/S Config Value
+      13: Link Partner Repeater/DTE Bit
+      14: Master/Slave Seed Match
+      15: Enable Shadow Register
+  MII 0xFFFF011D:
+    Name: HCD Status
+    Bits:
+      0: HCD 10T
+      1: HCD 10T FDX
+      2: HCD 100T
+      3: HCD 100T FDX
+      4: HCD 1000T
+      5: HCD 1000T FDX
+      6: HCD 10T
+      7: HCD 10T FDX
+      8: HCD 100T
+      9: HCD 100T FDX
+      10: HCD 1000T
+      11: HCD 1000T FDX
+      12: Wirespeed Downgrade
+      13: Wirespeed Disable 100TX Advertising
+      14: Wirespeed Disable Gigabit Advertising
+      15: Enable Shadow Register
+  MII 0x1E:
+    Name: Test 1
+    Bits:
+      0-3: Main DAC Trim
+      4: Main DAC Enable Software Trim Setting
+      5: Disable Polarity Encode
+      6: Receive Watchdog Timer Disable
+      7: Manual Swap MDI State
+      8: Fast Timers
+      9: External Link
+      10: Scrambler Test
+      11: Force Lock
+      12: Force Link
+      13: Counter Test Mode
+      14: Transmit Error Code Visibility
+      15: CRC Error Count Visibility
+  MII 0x1F:
+    Name: Test 2
+    Bits:
+      0: Disable Active Hybrid
+      1: Latency Measure
+      2: Test ATMP Counter
+      3: Jitter Test Mode
+      4: Same Scrambler Seeds
+      5: Bypass Transmit FIFO
+      6: Receive 10B Mode
+      7: Transmit 10B Mode
+      8: Writeable Link Partner M/S Seed
+      9: Force HCD
+      10: Writeable Link Partner Ability
+      11: Test Master/Slave Seed
+      12: Test Autonegotiation Timer
+      13-15: Test Select Autonegotiation FSM
+
+  MII 0x1F:
+    Name: "[SERDES] Block Address"
+
+  NVM 0x0000:
+    Name: Boot Magic
+    Notes: |
+      Set to HEADER_MAGIC (0x669955AA).
+  NVM 0x0004:
+    Name: Boot Stage 1 Load Address
+    Notes: |
+      Address at which stage 1 is loaded in RAM. This is also the entrypoint;
+      the NVM headers are not loaded.
+  NVM 0x0008:
+    Name: Boot Stage 1 Size
+    S1: true
+    Notes: |
+      Size of the stage 1 code image **in words**. This doesn't include this
+      header.
+  NVM 0x000C:
+    Name: Boot Stage 1 Offset
+    S1: true
+    Notes: |
+      Offset of the stage 1 code image from the start of the header (and
+      the start of the NVM device) **in bytes**. This is also the size
+      of the NVM header.
+
+      This should be 0x28C.
+  NVM 0x0010:
+    Name: Boot Header CRC
+    Notes: |
+      This is the Ethernet CRC of the boot header, which is all the fields
+      up to this point (magic, load address, size, offset).
+  NVM 0x0014:
+    Name: Image Directory
+    S1: true
+    S2: true
+    Notes: |
+      The image directory is an array of eight directory entries. Each entry
+      is formed of three 32-bit words:
+
+          4  ui  Load Address
+                   Seems to mostly be vestigial/unused.
+          4  ui  Type, Size and Flags
+                   Upper 8 bits are the type.
+
+                   Lower 22 bits are the size, generally in words. A directory
+                   entry is unused/invalid if the size is zero; such entries are
+                   ignored when searching for directory entries even if the type
+                   matches.
+
+                   The middle 2 bits are unknown flag bits which have never been
+                   observed in practice; bit 22 is "EXECUTE B" and bit 23 is
+                   "EXECUTE A".
+          4  ui  Offset
+                   Offset of the image in bytes.
+  NVM 0x0074:
+    Name: MFR Format Revision
+    Width: 1
+    Notes: |
+      Set to 0x44.
+  NVM 0x0075:
+    Name: MFR Directory CRC
+    Width: 1
+    Notes: |
+      This, plus the bytes of the image directory, must sum to zero.
+
+      (Yes, the directory CRC is included in the manufacturing data which is
+      itself protected by its own CRC.)
+  NVM 0x0076:
+    Name: MFR Length
+    Width: 2
+    Notes: |
+      Length of the manufacturing section. Set to 0x008C.
+  NVM 0x0078:
+    Name: MFR Reserved 078
+    Notes: |
+      Reserved/0. According to BCM headers, previously "PHY ID of physical
+      device".
+  NVM 0x007C:
+    Name: MFR MAC0 High
+    S1: true
+    Notes: |
+      Upper 16 bits are zero/unused.
+  NVM 0x0080:
+    Name: MFR MAC0 Low
+    S1: true
+  NVM 0x0084:
+    Name: MFR Name
+    Width: 16
+    Notes: |
+      ASCII string. Set to "BCM95719" (or whatever you like). Zero padded.
+  NVM 0x0094:
+    Name: MFR Hardware Revision
+    Width: 2
+    Notes: |
+      Two-character ASCII string, set to the hardware revision, e.g. "A1".
+  NVM 0x0096:
+    Name: MFR Firmware Revision
+    Width: 2
+    S1: true
+    Notes: |
+      Firmware revision. The upper 8 bits are the major revision, and
+      the lower 8 bits are the minor revision. For example, 0x012B means
+      v1.43.
+  NVM 0x0098:
+    Name: MFR Manufacturing Date
+    Width: 2
+    S1: true
+    Notes: |
+      Usually set to zero.
+  NVM 0x009C:
+    Name: MFR Function 0 PXE VLAN
+    Width: 2
+    Notes: |
+      Specifies VLAN ID to be used by PXE for function 0, if PXE VLAN ID usage
+      is enabled.
+  NVM 0x009E:
+    Name: MFR Function 1 PXE VLAN
+    Width: 2
+  NVM 0x00A0:
+    Name: MFR PCI Device ID
+    S1: true
+    Width: 2
+    Notes: |
+      Device sets its PCI Device ID from this field. Usually set to 0x1657 (BCM5719).
+  NVM 0x00A2:
+    Name: MFR PCI Vendor ID
+    S1: true
+    Width: 2
+    Notes: |
+      Device sets its PCI Vendor ID from this field. Usually set to 0x14E4 (Broadcom).
+  NVM 0x00A4:
+    Name: MFR PCI Subsystem ID
+    Width: 2
+    Notes: |
+      Device sets its PCI Subsystem ID from this field. Various values have been observed;
+      0x1657 (BCM5719) is reasonable.
+  NVM 0x00A6:
+    Name: MFR PCI Subsystem Vendor ID
+    S1: true
+    Width: 2
+    Notes: |
+      Device sets its PCI Subsystem Vendor ID from this field. 0x14E4 (Broadcom) is
+      usual.
+  NVM 0x00A8:
+    Name: MFR CPU Clock
+    Width: 2
+    Notes: |
+      This is set to 0x0042, 66MHz. Probably legacy field from PCI. Not read by
+      bootcode.
+  NVM 0x00AA:
+    Name: MFR Function 1 SMBUS Address
+    Width: 1
+    Notes: |
+      Usually set to zero. Not read by bootcode.
+  NVM 0x00AB:
+    Name: MFR Function 0 SMBUS Address
+    Width: 1
+    Notes: |
+      Usually set to zero. Not read by bootcode.
+  NVM 0x00AC:
+    Name: MFR Backup MAC Address 0 High
+    Notes: |
+      Often left as zero. Not read by bootcode.
+  NVM 0x00B0:
+    Name: MFR Backup MAC Address 0 Low
+  NVM 0x00B4:
+    Name: MFR Backup MAC Address 1 High
+  NVM 0x00B8:
+    Name: MFR Backup MAC Address 1 Low
+  NVM 0x00BC:
+    Name: MFR Power Dissipated
+    S1: true
+    Notes: |
+      This is an array of four 8-bit values, specifying PCIe
+      power dissipation data for PCIe reporting purposes. This word
+      is copied to undocumented REG 0x6414.
+  NVM 0x00C0:
+    Name: MFR Power Consumed
+    S1: true
+    Notes: |
+      This is an array of four 8-bit values, specifying PCIe
+      power consumption data for PCIe reporting purposes. This word
+      is copied to undocumented REG 0x6410.
+  NVM 0x00C4:
+    Name: MFR Function 0 Feature Config
+    S1: true
+    Notes: |
+      This is the feature config word for function 0. See GEN_CFG_FEATURE
+      for details.
+  NVM 0x00C8:
+    Name: MFR Function 0 Hardware Config
+    S1: true
+    Notes: |
+      This is the hardware config word for function 0. See GEN_CFG_HW
+      for details.
+  NVM 0x00CC:
+    Name: MFR MAC1 High
+    S1: true
+    Notes: |
+      MAC address for function 1. Upper 16 bits are 0/unused.
+  NVM 0x00D0:
+    Name: MFR MAC1 Low
+    S1: true
+  NVM 0x00D4:
+    Name: MFR Function 1 Feature Config
+    S1: true
+    Notes: |
+      This is the feature config word for function 1. See GEN_CFG_FEATURE for
+      details.
+  NVM 0x00D8:
+    Name: MFR Function 1 Hardware Config
+    S1: true
+    Notes: |
+      This is the hardware config word for function 1. See GEN_CFG_HW for details.
+  NVM 0x00DC:
+    Name: MFR Shared Config
+    S1: true
+    Notes: |
+      This specifies configuration flags which are shared between all functions.
+      See GEN_CFG_SHARED for details.
+  NVM 0x00E0:
+    Name: MFR Power Budget 0
+    S1: true
+    Notes: |
+      Power budgeting values used to implement the PCIe Power Budget capability.
+      These are loaded into undocumented registers by bootcode.
+  NVM 0x00E4:
+    Name: MFR Power Budget 1
+    S1: true
+  NVM 0x00E8:
+    Name: MFR Serworks Use
+    Notes: |
+      Unknown aside from field name. Probably vestigial. Set to 0.
+  NVM 0x00EC:
+    Name: MFR Function 0 SERDES Override
+    Width: 2
+    Notes: |
+      Unknown use, probably vestigial. Not read by bootcode. Set to 0.
+  NVM 0x00EE:
+    Name: MFR Function 1 SERDES Override
+    Width: 2
+    Notes: |
+      Unknown use, probably vestigial. Not read by bootcode. Set to 0.
+  NVM 0x00F0:
+    Name: MFR TPM NVM Size
+    Width: 2
+    Notes: |
+      Vestigial. Set to 0.
+  NVM 0x00F2:
+    Name: MFR MAC NVM Size
+    Width: 2
+    Notes: |
+      Vestigial. Set to 0.
+  NVM 0x00F4:
+    Name: MFR Power Budget 2
+    S1: true
+  NVM 0x00F8:
+    Name: MFR Power Budget 3
+    S1: true
+  NVM 0x00FC:
+    Name: MFR CRC
+    Notes: |
+      This is an Ethernet CRC over all manufacturing section fields (all fields
+      beginning MFR).
+  NVM 0x0100:
+    Name: VPD
+    Width: 0x100
+    S2: true
+    Notes: |
+      This block of 0x100 bytes is used to store VPD data. The format is the
+      standard PCI VPD format, with a read-only section and a read-write
+      section. This area may be disused (containing vestigial but well-formed
+      VPD data) if an extended VPD block is in use. This block has its own
+      checksum, in the format specified by the PCI VPD specification.
+  NVM 0x200:
+    Name: MFR2 Unknown 200
+    Width: 2
+    Source: Unknown
+    Notes: |
+      Unknown, set to 0. Probably unused.
+  NVM 0x202:
+    Name: MFR2 Length
+    Width: 2
+    Source: Guessed
+    Notes: |
+      Length of Manufacturing Section 2. Set to 0x8C.
+  NVM 0x204:
+    Name: MFR2 Unknown 204
+    Source: Unknown
+    Notes: Set to zero.
+  NVM 0x208:
+    Name: MFR2 MAC2 High
+    S1: true
+    Source: Guessed
+    Notes: |
+      MAC address for function 2.
+  NVM 0x20C:
+    Name: MFR2 MAC2 Low
+    Source: Guessed
+    S1: true
+  NVM 0x210:
+    Name: MFR2 Unknown 210
+    Source: Unknown
+  NVM 0x214:
+    Name: MFR2 Unknown 214
+    Source: Unknown
+  NVM 0x218:
+    Name: MFR2 Unknown 218
+    Source: Unknown
+  NVM 0x21C:
+    Name: MFR2 Config 5
+    Source: Guessed
+    S1: true
+    Notes: |
+      See GEN_CFG_5.
+  NVM 0x220:
+    Name: MFR2 Unknown 220
+    Source: Unknown
+  NVM 0x224:
+    Name: MFR2 Unknown 224
+    Source: Unknown
+  NVM 0x228:
+    Name: MFR2 Unknown 228
+    Source: Unknown
+  NVM 0x22C:
+    Name: MFR2 PCI Subsystem ID Function 1 GPHY
+    Source: Guessed
+    Width: 2
+    S1: true
+    Notes: |
+      These fields allow the subsystem ID to be selected automatically based on
+      whether the device uses GPHY or SERDES PHYs (that is, whether it uses
+      copper or fiber), and the function number. They are used instead of the
+      MFR PCI Subsystem ID field (which is in fact never used at all). The MFR
+      PCI Subsystem Vendor ID is always used as the Subsystem Vendor ID.
+
+      A reasonable setting for these values is 0x1657 (5719).
+  NVM 0x22E:
+    Name: MFR2 PCI Subsystem ID Function 0 GPHY
+    Source: Guessed
+    Width: 2
+    S1: true
+  NVM 0x230:
+    Name: MFR2 PCI Subsystem ID Function 2 GPHY
+    Source: Guessed
+    Width: 2
+    S1: true
+  NVM 0x232:
+    Name: MFR2 PCI Subsystem ID Function 3 GPHY
+    Source: Guessed
+    Width: 2
+    S1: true
+  NVM 0x234:
+    Name: MFR2 PCI Subsystem ID Function 1 SERDES
+    Source: Guessed
+    Width: 2
+    S1: true
+  NVM 0x236:
+    Name: MFR2 PCI Subsystem ID Function 0 SERDES
+    Source: Guessed
+    Width: 2
+    S1: true
+  NVM 0x238:
+    Name: MFR2 PCI Subsystem ID Function 3 SERDES
+    Source: Guessed
+    Width: 2
+    S1: true
+  NVM 0x23A:
+    Name: MFR2 PCI Subsystem ID Function 2 SERDES
+    Source: Guessed
+    Width: 2
+    S1: true
+  NVM 0x23C:
+    Name: MFR2 Unknown 23C
+    Source: Unknown
+  NVM 0x240:
+    Name: MFR2 Unknown 240
+    Source: Unknown
+  NVM 0x244:
+    Name: MFR2 Unknown 244
+    Source: Unknown
+  NVM 0x248:
+    Name: MFR2 Unknown 248
+    Source: Unknown
+  NVM 0x24C:
+    Name: MFR2 Unknown 24C
+    Source: Unknown
+  NVM 0x250:
+    Name: MFR2 Function 2 Feature Config
+    Source: Guessed
+    S1: true
+    Notes: |
+      This is the feature config word for function 2. See GEN_CFG_FEATURE for
+      details.
+  NVM 0x254:
+    Name: MFR2 Function 2 Hardware Config
+    Source: Guessed
+    S1: true
+    Notes: |
+      This is the hardware config word for function 2. See GEN_CFG_HW for
+      details.
+  NVM 0x258:
+    Name: MFR2 MAC3 High
+    Source: Guessed
+    S1: true
+    Notes: |
+      MAC address for function 3.
+  NVM 0x25C:
+    Name: MFR2 MAC3 Low
+    Source: Guessed
+    S1: true
+  NVM 0x260:
+    Name: MFR2 Function 3 Feature Config
+    Source: Guessed
+    S1: true
+    Notes: |
+      This is the feature config word for function 3. See GEN_CFG_FEATURE for
+      details.
+  NVM 0x264:
+    Name: MFR2 Function 3 Hardware Config
+    Source: Guessed
+    S1: true
+    Notes: |
+      This is the hardware config word for function 3. See GEN_CFG_HW for
+      details.
+  NVM 0x268:
+    Name: MFR2 Unknown 268
+    Source: Unknown
+  NVM 0x26C:
+    Name: MFR2 Unknown 26C
+    Source: Unknown
+  NVM 0x270:
+    Name: MFR2 Unknown 270
+    Source: Unknown
+  NVM 0x274:
+    Name: MFR2 Unknown 274
+    Source: Unknown
+  NVM 0x278:
+    Name: MFR2 Function 0 Hardware Config 2
+    Source: Guessed
+    S1: true
+    Notes: |
+      See GEN_CFG_HW_2.
+  NVM 0x27C:
+    Name: MFR2 Function 1 Hardware Config 2
+    Source: Guessed
+    S1: true
+    Notes: |
+      See GEN_CFG_HW_2.
+  NVM 0x280:
+    Name: MFR2 Function 2 Hardware Config 2
+    Source: Guessed
+    S1: true
+    Notes: |
+      See GEN_CFG_HW_2.
+  NVM 0x284:
+    Name: MFR2 Function 3 Hardware Config 2
+    Source: Guessed
+    S1: true
+    Notes: |
+      See GEN_CFG_HW_2.
+  NVM 0x288:
+    Name: MFR2 CRC
+    Source: Guessed
+    Notes: |
+      This is an Ethernet CRC over all manufacturing section 2 fields (all
+      fields beginning MFR2). **This is the end of the NVM header.**
+  NVM 0x28C:
+    Name: S1 Entrypoint Jump
+    Source: Guessed
+    Notes: |
+      This is the first instruction word of the stage1 MIPS image. It contains
+      an entrypoint jump, followed by a NOP.
+  NVM 0x290:
+    Name: S1 Entrypoint NOP
+    Source: Guessed
+    Notes: |
+      Set to 0 (this is the NOP instruction in MIPS).
+  NVM 0x294:
+    Name: S1 Version String Pointer
+    Source: Guessed
+    Notes: |
+      This is a pointer to a zero-terminated ASCII version string in the S1 image,
+      assuming the S1 image is loaded at the S1 Load Address specified in the NVM
+      header. To get the version string from the image, subtract the image base
+      from this pointer and add the resulting value to the offset of the
+      S1 image in NVM.
+
+      Yes, this comes after the first opcode. The entrypoint jump jumps over it.
+  DIRENTRY 0x00:
+    Name: PXE Option ROM
+    Source: Header
+    S1: true
+    Notes: |
+      This entry in the directory is used to point to the PXE Option ROM image
+      in NVM. Observed in recent images. Note that the option ROM actually
+      contains multiple images (using the format specified by PCI); for
+      example, it would typically contain an x86 PC BIOS image and an x86-64
+      UEFI BIOS image.
+
+      The size field for this entry is encoded **in bytes**. The load address
+      field might be vestigial but has been observed to be 0x0001_0000.
+  DIRENTRY 0x01:
+    Name: ASF Init
+    Source: Header
+    Notes: Vestigial. The BCM5719 does not support ASF.
+  DIRENTRY 0x02:
+    Name: ASF CPU A
+    Source: Header
+    Notes: Vestigial. The BCM5719 does not support ASF.
+  DIRENTRY 0x03:
+    Name: ASF CPU B
+    Source: Header
+    Notes: Vestigial. The BCM5719 does not support ASF.
+  DIRENTRY 0x04:
+    Name: ASF Cfg
+    Source: Header
+    Notes: Vestigial. The BCM5719 does not support ASF.
+  DIRENTRY 0x05:
+    Name: iSCSI Cfg
+    Source: Header
+    Notes: |
+      iSCSI option ROM configuration data for function 0. Observed in
+      recent images.
+  DIRENTRY 0x06:
+    Name: iSCSI Cfg Program
+    Source: Header
+    Notes: |
+      iSCSI option ROM configuration program. Unobserved; has probably been
+      replaced with CCM. Was probably a program chainloadable by the PXE Option
+      ROM.
+  DIRENTRY 0x07:
+    Name: User Block
+    Source: Header
+    Notes: Meaning unknown. Unobserved.
+  DIRENTRY 0x08:
+    Name: BRSF Block
+    Source: Header
+    Notes: Meaning unknown. Unobserved.
+  DIRENTRY 0x09:
+    Name: iSCSI Boot
+    Source: Header
+    Notes: |
+      iSCSI boot option ROM. This ROM may be chainloaded by the PXE option ROM.
+      Observed in recent images.
+  DIRENTRY 0x0A:
+    Name: ASF Mailbox
+    Source: Header
+    Notes: |
+      Vestigial. The BCM5719 does not support ASF.
+  DIRENTRY 0x0B:
+    Name: iSCSI Cfg 1
+    Source: Header
+    Notes: iSCSI option ROM configuration data for function 1. Observed in recent images.
+  DIRENTRY 0x0C:
+    Name: APE Cfg
+    Source: Header
+    Notes: |
+      Unobserved. It is unknown whether NCSI APE images can be configured by
+      adding one of these directory entries to an image; more likely only older
+      management firmware (implementing ASF, etc.) requires a configuration
+      block.
+  DIRENTRY 0x0D:
+    Name: APE Code
+    Source: Header
+    Notes: |
+      Observed in recent images. This contains the compressed APE code
+      implementing the NCSI APE firmware. Presumably, the APE boot ROM
+      uses it to load the APE code.
+  DIRENTRY 0x0E:
+    Name: APE Update
+    Source: Header
+    Notes: Unobserved.
+  DIRENTRY 0x0F:
+    Name: Extended Cfg
+    Source: Header
+    Notes: Unobserved.
+  DIRENTRY 0x10:
+    Name: Extended Directory
+    Source: Header
+    Notes: |
+      Observed in recent images. This is used to provide room for more
+      directory entries than are available in the fixed array of 8 directory
+      entries. The area described by this directory entry contains directory
+      entries in the same format.
+
+      If a directory entry type has the MSB set (types 0x80-0xFF), it must
+      be stored in an extended directory; if a type does not have the MSB set
+      (types 0x00-0x7F), it must not be stored in an extended directory. The
+      MSB in a type is used to determine whether to search for that type in
+      the normal or extended directory.
+  DIRENTRY 0x11:
+    Name: APE Data
+    Source: Header
+    Notes: Unobserved.
+  DIRENTRY 0x12:
+    Name: APE Web Data
+    Source: Header
+    Notes: Unobserved.
+  DIRENTRY 0x13:
+    Name: APE Workaround
+    Source: Header
+    Notes: Unobserved.
+  DIRENTRY 0x14:
+    Name: Extended VPD
+    Source: Header
+    S2: true
+    Notes: |
+      This is used as a more recent way to store VPD data. Instead of storing
+      VPD data in the fixed-size block NVM [0x100-0x1FF], the VPD data is
+      stored in the area pointed to by this directory entry. The format is the
+      same. If this directory entry is present, the VPD structure in the NVM
+      header is ignored and never used.
+  DIRENTRY 0x82:
+    Name: iSCSI Cfg 2
+    Source: Guessed
+    Notes: iSCSI option ROM configuration data for function 2. Observed in recent images. 
+  DIRENTRY 0x83:
+    Name: iSCSI Cfg 3
+    Source: Guessed
+    Notes: iSCSI option ROM configuration data for function 3. Observed in recent images.
+  DIRENTRY 0x88:
+    Name: CCM Code
+    Source: Guessed
+    Notes: |
+      Observed in recent images. This appears to be the "Comprehensive
+      Configuration Management" tool which can be chainloaded by the PXE Option
+      ROM if the user presses a key to enter the tool when prompted at boot
+      time.
+
+      Because the MSB of the type byte is set, it must be referenced via an
+      extended directory. It has most likely replaced the "iSCSI Cfg Program".

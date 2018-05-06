@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+import sys, yaml, xml.etree.ElementTree as ET, re, markdown
+
+re_symbolize = re.compile(r'''[^a-zA-Z0-9]''')
+re_ref = re.compile(r'''(REG|GEN)_[A-Za-z0-9_]+''')
+re_word = re.compile(r'''[^ /]+''')
+
+abbrs = dict(
+  HARDWARE='HW',
+  SIGNATURE='SIG',
+  MAILBOX='MBOX',
+  CONFIG='CFG',
+  FIRMWARE='FW',
+  ADDRESS='ADDR',
+)
+
+def subref(m):
+  return '<a href="#' + m.group(0) + '" class="reflink">' + m.group(0) + '</a>'
+
+def _abbreviate(m):
+  word = m.group(0)
+  abbr = abbrs.get(word.upper())
+  if abbr:
+    return abbr
+  else:
+    return word
+
+def abbreviate(s):
+  return re_word.sub(_abbreviate, s)
+
+def symbolize(s):
+  return re_symbolize.sub('_', abbreviate(s)).upper()
+
+def lhex(n):
+  return hex(n)[2:]
+def uhex(n):
+  return lhex(n).upper()
+def nicenum(x, pad=1, padch='0'):
+  chars = hex(x)[2:].upper().rjust(pad, padch)
+  pchars = ''
+  while len(chars) > 0:
+    pchars = chars[-4:] + '_' + pchars
+    chars = chars[0:len(chars)-len(chars[-4:])]
+  return pchars.rstrip('_')
+
+def addBody(reg, e):
+  bits = reg.get('Bits')
+  if bits:
+    table = ET.SubElement(e, 'table', {"class":"bits"})
+    headerRow = ET.SubElement(table, 'tr')
+    ET.SubElement(headerRow, 'th', {"class":"bits"}).text = 'Bits'
+    ET.SubElement(headerRow, 'th').text = 'Description'
+    for bitRange, info in sorted(bits.items(), key=lambda x: int(str(x[0]).split('-',1)[0])):
+      bitRange = str(bitRange)
+      if type(info) == str:
+        info = dict(Name=info)
+
+      row = ET.SubElement(table, 'tr')
+      ET.SubElement(row, 'td', {"class":"bits"}).text = bitRange.replace('-','—')
+      namee = ET.SubElement(row, 'td')
+      ET.SubElement(namee, 'div', {"class":"bitname"}).text = str(info.get('Name', ''))
+
+      notes_md = '<div class="res-notes">' + markdown.markdown(info.get('Notes', '')) + '</div>'
+      notes_md = re_ref.sub(subref, notes_md)
+      namee.append(ET.fromstring(notes_md))
+
+      addBody(info, namee)
+  values = reg.get('Values')
+  if values:
+    table = ET.SubElement(e, 'table', {"class":"values"})
+    headerRow = ET.SubElement(table, 'tr')
+    ET.SubElement(headerRow, 'th', {"class":"value"}).text = 'Value'
+    ET.SubElement(headerRow, 'th').text = 'Description'
+    for value, info in sorted(values.items(), key=lambda x: x[0]):
+      value = str(value)
+      if type(info) != dict:
+        info = dict(Name=str(info))
+      row = ET.SubElement(table, 'tr')
+      ET.SubElement(row, 'td', {"class":"value"}).text = value
+      namee = ET.SubElement(row, 'td')
+      ET.SubElement(namee, 'div', {"class":"valuename"}).text = str(info.get('Name', ''))
+
+      notes_md = '<div class="res-notes">' + markdown.markdown(info.get('Notes', '')) + '</div>'
+      notes_md = re_ref.sub(subref, notes_md)
+      namee.append(ET.fromstring(notes_md))
+
+def run():
+  f = open('regs.yaml','r')
+  data = yaml.load(f)
+  dRes = data['Resources']
+
+  groups = dict(
+    MEM=dict(order=0, title='RX CPU Memory Map', numpad=8),
+    REG=dict(order=1, title='Device Registers', symbolPrefix='REG_'),
+    APE=dict(order=2, title='Device APE Registers', symbolPrefix='REG_APE__'),
+    GEN=dict(order=3, title='GENCOM', numpad=3, symbolPrefix='GEN_'),
+    MII=dict(order=4, title='MII Registers', numpad=8),
+    NVM=dict(order=5, title='NVM Layout', numpad=3, defaultSource='Header'),
+    DIRENTRY=dict(order=6, title='NVM Directory Entries', numpad=2, defaultSource='Header'),
+    PORT=dict(order=7, title='Ports', numpad=1),
+  )
+  for k, v in dRes.items():
+    resType, resNum = k.split(' ', 1)
+    resNum = int(resNum, 0)
+    if not v:
+      print(k)
+    v['Num'] = resNum
+    g = groups.get(resType)
+    if not g:
+      g = dict()
+      groups[resType] = g
+    if 'members' not in g:
+      g['members'] = []
+      g['type'] = resType
+    g['members'].append(v)
+
+  root = ET.Element('html', dict(xmlns='http://www.w3.org/1999/xhtml', lang='en'))
+  head = ET.SubElement(root, 'head')
+  ET.SubElement(head, 'link', dict(href='regs.css', rel='stylesheet'))
+  title = ET.SubElement(head, 'title')
+  title.text = 'Resources'
+  body = ET.SubElement(root, 'body')
+
+  toc = ET.SubElement(body, 'section', {"class":"toc"})
+  ET.SubElement(toc, 'h2').text = 'Table of Contents'
+  tocL = ET.SubElement(toc, 'ul')
+
+  sgroups = sorted(list(groups.values()), key=lambda x: x.get('order', 99))
+  for group in sgroups:
+    e = ET.SubElement(tocL, 'li')
+    ET.SubElement(e, 'a', {"href":"#"+group['type']}).text = group['title']
+
+  for group in sgroups:
+    regSec = ET.SubElement(body, 'section', {"id": group['type']})
+    htext = group.get('title', '')
+    pfx = group.get('pfx', group['type'] + ' ')
+    groupcl = group['type'].lower()
+    defaultSource = group.get('defaultSource', 'Manual')
+    groupType = group['type']
+    numpad = group.get('numpad', 4)
+    ET.SubElement(regSec, 'h1').text = htext
+    for reg in group['members']:
+      e = ET.SubElement(regSec, 'div', {"class":"res res-%s res-src-%s" % (groupcl, reg.get('Source', defaultSource).lower()), "id":"%s-%04x" % (groupcl,reg['Num'])})
+      header = ET.SubElement(e, 'h2')
+      if groupType == 'MEM':
+        opener = '[%s%s—%s] ' % (pfx, nicenum(reg['Num'],numpad), nicenum(reg['End'],numpad))
+      else:
+        opener = '[%s%s] ' % (pfx, nicenum(reg['Num'],numpad,' '))
+      ET.SubElement(header, 'span', {"class":"res-addr"}).text = opener
+      ET.SubElement(header, 'a', {"class":"res-name", "href":"#%s-%04x" % (groupcl,reg['Num'])}).text = reg.get('Name', uhex(reg['Num']))
+
+      attrs = ET.SubElement(header, 'span', {"class":"res-attrs"})
+      symbolPrefix = group.get('symbolPrefix')
+      if symbolPrefix:
+        txt = symbolPrefix + symbolize(reg.get('Name', uhex(reg['Num'])))
+        ET.SubElement(attrs, 'span', {"class":"res-symbol", "id":txt}).text = ' ' + txt + ' '
+      ET.SubElement(attrs, 'span', {"class":"res-source"}).text = reg.get('Source', defaultSource)
+      touch = '◯'
+      if reg.get('S1') and reg.get('S2'):
+        touch = '⬤'
+      elif reg.get('S1'):
+        touch = '➊'
+      elif reg.get('S2'):
+        touch = '➋'
+      ET.SubElement(attrs, 'span', {"class":"res-touch res-touch-s1"}).text = touch
+      bodye = ET.SubElement(e, 'div', {"class":"res-body"})
+      notes_md = '<div class="res-notes">' + markdown.markdown(reg.get('Notes', '')) + '</div>'
+      notes_md = re_ref.sub(subref, notes_md)
+      bodye.append(ET.fromstring(notes_md))
+      addBody(reg, bodye)
+
+  legend = ET.SubElement(body, 'div', {"class":"legend"})
+  legend.text = '''
+    ◯: Not read or written by S1 or S2.
+    ⬤: Read or written by both S1 and S2.
+    ➊: Read or written by S1 only.
+    ➋: Read or written by S2 only.
+  '''
+
+  with open('regs.xhtml', 'wb') as fo:
+    fo.write(b'<?xml version="1.0" encoding="utf-8"?>')
+    fo.write(ET.tostring(root, 'utf-8'))
+
+  return 0
+
+if __name__ == '__main__':
+  sys.exit(run())

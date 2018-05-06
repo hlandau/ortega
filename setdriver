@@ -1,0 +1,93 @@
+#!/bin/sh
+set -e
+
+[ -z "$1" ] && {
+  echo >&2 "usage: <command>"
+  echo >&2 ""
+  echo >&2 "This command can be used to switch a tg3 device between the tg3 driver (for normal use)"
+  echo >&2 "and the pci-stub driver (which does nothing for the device and ensures that the kernel"
+  echo >&2 "doesn't try and fiddle with it while one is messing with it. The pci-stub mode can also"
+  echo >&2 "be used to pass the device through to a qemu/KVM virtual machine."
+  echo >&2 ""
+  echo >&2 "commands:"
+  echo >&2 "  stub <pci-addr>    - assign a device to the pci-stub driver"
+  echo >&2 "  virt <pci-addr>    - assign a device to the vfio-pci driver"
+  echo >&2 "  tg3  <pci-addr>    - assign a device to the tg3 driver"
+  echo >&2 "  reset <pci-addr>   - reset a PCI device"
+  exit 2
+}
+
+[ "$(id -u)" -eq 0 ] || {
+  echo >&2 Must be run as root.
+  exit 1
+}
+
+case "$1" in
+  stub)
+    ADDR="$2"
+    [ -z "$ADDR" ] && {
+      echo >&2 Must specify PCI address.
+      exit 1
+    }
+
+    modprobe pci_stub
+    VENDOR_ID="$(cat /sys/bus/pci/devices/"$ADDR"/vendor)"
+    DEVICE_ID="$(cat /sys/bus/pci/devices/"$ADDR"/device)"
+    echo "$VENDOR_ID $DEVICE_ID" > /sys/bus/pci/drivers/pci-stub/new_id
+    [ -e "/sys/bus/pci/devices/$ADDR/driver/unbind" ] && {
+      echo "$ADDR" > /sys/bus/pci/devices/"$ADDR"/driver/unbind
+    }
+    echo pci-stub > /sys/bus/pci/devices/"$ADDR"/driver_override
+    echo "$ADDR" > /sys/bus/pci/drivers/pci-stub/bind
+    ;;
+
+  virt)
+    ADDR="$2"
+    [ -z "$ADDR" ] && {
+      echo >&2 Must specify PCI address.
+      exit 1
+    }
+
+    modprobe vfio-pci
+    [ -e "/sys/bus/pci/devices/"$ADDR"/vendor" ] || {
+      echo >&2 Bad PCI address.
+      exit 1
+    }
+
+    echo vfio-pci > /sys/bus/pci/devices/"$ADDR"/driver_override
+    [ -e "/sys/bus/pci/devices/$ADDR/driver/unbind" ] && {
+      echo "$ADDR" > /sys/bus/pci/devices/"$ADDR"/driver/unbind
+    }
+    echo "$ADDR" > /sys/bus/pci/drivers_probe
+    #drivers/vfio-pci/bind
+    ;;
+
+  tg3)
+    ADDR="$2"
+    [ -z "$ADDR" ] && {
+      echo >&2 Must specify PCI address.
+      exit 1
+    }
+
+    echo tg3 > /sys/bus/pci/devices/"$ADDR"/driver_override
+    [ -e "/sys/bus/pci/devices/$ADDR/driver/unbind" ] && {
+      echo "$ADDR" > /sys/bus/pci/devices/"$ADDR"/driver/unbind
+    }
+    echo "$ADDR" > /sys/bus/pci/drivers/tg3/bind
+    ;;
+
+  reset)
+    ADDR="$2"
+    [ -z "$ADDR" ] && {
+      echo >&2 Must specify PCI address.
+      exit 1
+    }
+
+    echo 1 > /sys/bus/pci/devices/"$ADDR"/reset
+    ;;
+
+  *)
+    echo >&2 "Unknown command."
+    exit 1
+    ;;
+esac
