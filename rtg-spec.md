@@ -525,19 +525,16 @@ BIOS_DISABLED_MAGIC:   0xDEADDEAD.
 
 ### Procedure: Sleep
 
-This procedure takes an argument: delay.
-
-  0. Note the current value of `REG_TIMER`.
-
-  1. Loop for as long as the current value of `REG_TIMER` is less than the
-     value of `REG_TIMER` noted above plus the delay value.
+Given an argument `delay`, note the initial value of `REG_TIMER` and loop for
+as long as the current value of `REG_TIMER` is less than that value plus
+`delay`.
 
 ### Procedure: MII Wait
 
 This waits for a previously initiated MII MDIO register access operation to
 complete.
 
-  0. Loop for as long as `REG_MII_COMMUNICATION__START_BUSY` is set.
+Loop for as long as `REG_MII_COMMUNICATION__START_BUSY` is set.
 
 ### Procedure: MII Read
 
@@ -714,15 +711,113 @@ This procedure takes an argument: a 32-bit byte offset value.
 The entrypoint assembly must be constructed as described in previous sections,
 and must call the S1Start procedure described in this section.
 
-### Procedure: S1Start
+Rather than describing the exact sequence of steps taken by the original
+firmware, this is a list of things which the S1 firmware seems to need to do.
+This list is a work in progress.
 
-TODO
+The following actions are taken early, immediately after S1 boot.
+
+  - Or `REG_MEMORY_ARBITER_MODE__ENABLE`.
+  - Mask `REG_RX_RISC_MODE__ENABLE_DISABLE_CACHE`.
+  - Or `REG_PCI_STATE__{APE_PROGRAM_SPACE_WRITE_ENABLE,APE_SHARED_MEMORY_WRITE_ENABLE,APE_CONTROL_REGISTER_WRITE_ENABLE}'.
+
+The following actions are taken during S1 init.
+
+  - Mask `REG_GPHY_CONTROL_STATUS__{BIAS_IDDQ,GPHY_IDDQ,SGMII_PCS_POWER_DOWN}`. If `REG_STATUS__VMAIN_POWER_STATUS` is asserted, mask `TLP_CLOCK_SOURCE`, otherwise or it.
+  - Load various config from NVM and store it in memory for later use.
+  - Load various config from NVM and stash it into registers. For example:
+      - MAC0 is stored into `REG_PCI_SERIAL_NUMBER_{LOW,HIGH}`.
+      - MAC0,1,2,3 are set into `REG_EMAC_MAC_ADDRESSES_{0,1,2,3}_{HIGH_LOW}`. Also set `GEN_MAC_ADDR_{HIGH,LOW}_MBOX`.
+      - `REG_PCI_STATE__EXPANSION_ROM_DESIRED` is set/masked based on whether expansion ROM is found in NVM directory. If found
+      - `REG_PCI_POWER_{DISSIPATED,CONSUMPTION}_INFO` are set from the corresponding fields in NVM.
+      - `REG_PCI_POWER_BUDGET_{0,...,n}` are initialised from NVM.
+      - Set `REG_PCI_SUBSYSTEM_ID` to the subsystem and subsystem vendor ID from NVM. There are different fields in NVM for each PCI function and based on whether GPHY or SERDES is in use.
+      - Set `REG_PCI_VENDOR_DEVICE_ID` to vendor/device ID from NVM.
+      - Set `REG_PCI_CLASS_CODE_REVISION` as desired, partly from `REG_CHIP_ID`.
+  - Lots of gencom regions are zeroed during init, though not all.
+  - Other miscellaneous register init:
+      - Mask REG 0x64C0 bits 0x7FF, or bits 0x0010. This register is unknown.
+      - Set unknown REG 0x64C8 to 0x1004.
+      - Set `REG_CLOCK_SPEED_OVERRIDE_POLICY` to `MAC_CLOCK_SPEED_OVERRIDE_ENABLE`.
+      - Mask REG 0x64DC bits 0x0F, or bits 0x01. Unknown.
+      - Mask REG 0x64DC bits 0xC00, set ...
+      - Unknown stuff involving REG 0x6530, REG 0x65F4, depends on config
+      - `REG_LSO_NONLSO_BD_READ_DMA_CORRUPTION_ENABLE_CONTROL`: Set BD and NonLSO fields to 4K.
+      - Mask `REG_GPHY_STRAP__{RXMBUF,TXMBUF,RXCPU_SPAD}_ECC_ENABLE`.
+      - Initialise `REG_LED_CONTROL` as desired.
+      - Set `REG_MISCELLANEOUS_LOCAL_CONTROL` as desired. Default setting seems to be to set GPIO0 as output, on. Other GPIOs unchanged.
+        the offset of it in NVM is set into `REG_EXPANSION_ROM_ADDRESS`.
+      - Set `REG_EAV_REF_CLOCK_CONTROL` as desired. This is initialised from
+        `CFG_HW`; the `TIMESYNC_GPIO_MAPPING`, `APE_GPIO_{0,1,2,3}` fields
+        within it are copied to the corresponding fields in
+        `REG_EAV_REF_CLOCK_CONTROL`.
+      - Optionally enable `REG_GRC_MODE_CONTROL__TIME_SYNC_MODE_ENABLE`.
+      - Or `REG_MII_MODE__CONSTANT_MDIO_MDC_CLOCK_SPEED`.
+      - Set or clear `REG_GPHY_CONTROL_STATUS__SWITCHING_REGULATOR_POWER_DOWN` as desired.
+      - Set or clear `REG_TOP_LEVEL_MISCELLANEOUS_CONTROL_1__NCSI_CLOCK_OUTPUT_DISABLE` as desired.
+    - Lots of MII init. MII init done on FUNCTION 0 ONLY:
+      - MIIPORT 0 (0x8010):0x1A |= 0x4000
+      - MIIPORT 0 (0x8610):0x15, set bits 0:1 to 2. (Note: This is done in a
+        retry loop which verifies the block select by reading 0x1F and
+        confirming it reads 0x8610, and then verifies that bits 0:1 have been
+        set to 2, and retries about a dozen times until the block select and
+        write are both correct. Probably an attempt to work around some bug or
+        weird asynchronous behaviour for these unknown MII registers.)
+      - MIIPORT 0 (0x8010):0x1A, mask 0x4000.
+    - MII init for all functions (MIIPORT determined by function/PHY type):
+      - Set `MII_REG_CONTROL` to `AUTO_NEGOTIATION_ENABLE`.
+
+The following actions are taken late, immediately before S2 boot.
+
+  - Set `REG_BUFFER_MANAGER_MODE` to `ENABLE|ATTENTION_ENABLE|RESET_RXMBUF_PTR`.
+  - Set GENCOM 0x004 to `DRIVER_READY_MAGIC`.
+
+Note: The above is an incomplete description of what stands out as the most
+important-looking stuff taken during S1 init. Keep in mind that all of these
+registers are visible to host drivers too; the MIPS bootcode basically feels
+like an autoconfiguration system. In principle if you don't want stuff like WoL
+the host driver could work autonomously. Not sure if the host drivers know how
+to read the MAC from NVM and set it automatically, etc.; probably not. But in
+principle unlike e.g. the APE side it's probably not going to be that hard to
+mash enough of this together to get packets flowing. The host drivers will
+refuse to load if they don't detect the firmware's up via some gencom
+mailboxes, but they don't seem to demand that much beyond that. The above
+doesn't mention much about gencom, and a lot of gencom seems to be used for
+applications for which private globals would be better (in that gencom exists
+for firmware-host communication but a lot of the fields of it seem to go
+unused.) But there might also be software which uses gencom fields which I
+don't know about (e.g. diag tools), so assuming any gencom fields are unused
+might not be safe. But really, for the time being, I'd just make globals
+private by default and put stuff in GENCOM if you can find evidence of
+dependence in e.g. the Linux tg3 driver. The `mailboxes` are the most common
+case, the driver demands the magic be there or it won't init (see
+`GEN_FIRMWARE_MBOX` below). See tg3.
 
 ## S2 Bootcode Functional Description
 
 The entrypoint assembly must be constructed as described in previous sections,
 and must call the S2Start function described in this section.
 
-### Function: S2Start
+Incomplete list of MII initialisation done by S2 init code FOR GPHY:
+  - Set `MII_REG_CONTROL` to `RESET`; wait until `RESET` bit clears.
+  - Mask `REG_MDI_CONTROL` bits 0x4. Meaning unknown.
+  - Set MII (SHADOW 0x05):0x1C as desired. e.g. `CLK125_OUTPUT_ENABLE`, `SIGDET_DEASSERT_TIMER_LENGTHEN`, `DISABLE_LOW_POWER_10BASET_LINK_MODE`, `LOW_POWER_ENC_DISABLE`.
+  - Cases for handling Mini-PCI mode (YES REALLY). Not mentioned here.
+  - Set `MII_REG_1000BASE_T_CONTROL` as desired (e.g. `ADVERTISE_FULL_DUPLEX|ADVERTISE_HALF_DUPLEX`).
+  - Set `MII_REG_AUTO_NEGOTIATION_ADVERTISEMENT` as desired (pretty much enable
+    `PROTOCOL_SELECT__IEEE_802_3` and all the full/half duplex options).
+Incomplete list of MII initialisation done by S2 init code FOR SERDES:
+  - Set `MII_REG_CONTROL` to `AUTO_NEGOTIATION_RESTART|AUTO_NEGOTIATION_ENABLE`.
 
-TODO
+Incomplete list of initialisation taken by S2 init code:
+  - Set `REG_EMAC_MODE__PORT_MODE` based on `REG_STATUS__ETHERNET_LINK_STATUS`
+    (GPHY) or `REG_SGMII_STATUS__LINK_STATUS` (SERDES).
+  - Set `REG_LINK_AWARE_POWER_MODE_CLOCK_POLICY__MAC_CLOCK_SWITCH__6_25MHZ`.
+  - Set/mask `REG_CPMU_CONTROL__LINK_{AWARE,IDLE,SPEED}_POWER_MODE_ENABLE` as
+    desired (from NVM).
+
+The following actions are taken late in init, immediately before the S2 main loop:
+  - Mask `REG_CLOCK_SPEED_OVERRIDE_POLICY__MAC_CLOCK_SPEED_OVERRIDE_ENABLE`.
+  - Set `GEN_FIRMWARE_MBOX` to `BOOTCODE_READY_MAGIC`.
+
+Then the main loop happens.
