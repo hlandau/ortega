@@ -1,0 +1,354 @@
+Boot ROM Notes
+  Modifies REG_APE__STATUS.
+
+  Erases area [0x11_5E48, 0x11_6B6C) (~3.3 KiB).
+  Copies rest of boot ROM to 0x11_5800 and jumps to it.
+
+APE Memory Map
+
+  --Code------------------------------0000_0000
+    0x0000_0000 \  Invalid
+    0x000F_FFFF /
+    0x0010_0000 \  Code
+    0x0011_7FFF /  End of stack/code
+    0x0011_8000 \  
+    0x1FFF_FFFF /  Invalid
+  --SRAM------------------------------2000_0000
+    (TODO)
+  --Peripheral------------------------4000_0000
+    (TODO)
+  --External RAM----------------------6000_0000
+    0x6000_0000 \  Appears to be boot ROM.
+    0x6000_072F /
+      ...
+    0x6020_0000 \  Maps to APE registers (APE+0).
+    0x6021_FFFF /  End guessed.
+    0x6022_0000 \  APE Function 0 SHM (APE+0x4000).
+    0x6022_0FFF /
+    0x6022_1000 \  APE Function 1 SHM.
+    0x6022_1FFF /
+    0x6022_2000 \  APE Function 2 SHM.
+    0x6022_2FFF /
+    0x6022_3000 \  APE Function 3 SHM.
+    0x6022_3FFF /
+      ...
+    0x6024_0000 \  NVM Registers (same layout as device register block 0x7000)
+    0x6024_.... /
+    0x6024_1000 \  APE Peripheral: SMBus 1
+                /
+  --External Device-------------------A000_0000
+    0xA000_0000 \  Unknown thing A (port 0).
+    0xA000_3FFF /
+    0xA000_4000 \  Unknown thing A (port 1).
+    0xA000_7FFF /
+    0xA000_8000 \  Unknown thing A (port 2).
+    0xA000_BFFF /
+    0xA000_C000 \  Unknown thing A (port 3).
+    0xA000_FFFF /
+
+    0xA002_0000 \  Unknown thing B (port 0).
+    0xA002_1FFF /
+    0xA002_2000 \  Unknown thing B (port 1).
+    0xA002_3FFF /
+    0xA002_4000 \  Unknown thing B (port 2).
+    0xA002_5FFF /
+    0xA002_6000 \  Unknown thing B (port 3).
+    0xA002_7FFF /
+
+    0xA004_0000 \  Device Registers (function 0, e.g. 0xA004362C -> REG_STATUS).
+    0xA004_FFFF /
+    0xA005_0000 \  Device Registers (function 1).
+    0xA005_FFFF /
+    0xA006_0000 \  Device Registers (function 2).
+    0xA006_FFFF /
+    0xA007_0000 \  Device Registers (function 3).
+    0xA007_FFFF /
+
+    0xA008_0000    ???
+    0xA008_0400    ??? - Func0
+    0xA008_0800    ??? - Func1
+      These don't seem to exist for Func2/3.
+
+    (TODO)
+  --PPB Internal----------------------E000_0000
+    (TODO)
+  --PPB External----------------------E004_0000
+    (TODO)
+  --Vendor Specific-------------------E010_0000
+    (TODO)
+  ---------------------------------------------
+
+
+
+  0x6000_0000 \  Looks like the boot ROM.
+  0x6000_072F /
+
+  0x6020_0000    Maps to APE registers (APE+0)
+
+  0x6022_0000    Maps to APE shared memory region (APE+0x4000). Appears to
+                 correspond to function 0.
+                   0x6022_0000: test for 'APE!' magic
+
+       APE 0x4100  0x6022_0100: RCPU magic ('RCPU'), written by RX CPU
+       APE 0x4104  0x6022_0104: RCPU segment length
+       APE 0x4108  0x6022_0108: RCPU init count
+       APE 0x410C  0x6022_010C: RX firmware version
+       APE 0x4110  0x6022_0110: GEN_CFG_FEATURE (GEN 1E4)
+       APE 0x4114  0x6022_0114: PCI Vendor/Device ID
+       APE 0x4118  0x6022_0118: PCI Subsystem ID
+       APE 0x4128  0x6022_0128: GEN_CFG_HW (GEN 1E8)
+       APE 0x412C  0x6022_012C: GEN_CFG_HW_2 (GEN 2A8)
+       APE 0x4130  0x6022_0130: g_cpmuStatus (REG_STATUS[31:16]||0x362C)
+
+       APE 0x481C  0x6022_081C: build date string
+       APE 0x4810  0x6022_0810: build time string
+                   0x6022_0890: Set to REG 0x3658
+
+  0x6022_1000    Seems to be Function 1 APE SHM
+  0x6022_2000    Seems to be Function 2 APE SHM
+  0x6022_3000    Seems to be Function 3 APE SHM
+
+  0x6024_0000    Probably APE Peripheral Space
+                 0x6024_0000  NVM
+                 0x6024_0100  SMBus 1
+
+  0x6026         not seen
+
+  0xA000_0000    unknown, split by port:
+  0xA000_0000      Port 0
+  0xA000_4000      Port 1
+  0xA000_8000      Port 2
+  0xA000_C000      Port 3
+
+  0xA002_0000    unknown, split by port:
+  0xA002_0000      Port 0
+  0xA002_2000      Port 1
+  0xA002_4000      Port 2
+  0xA002_6000      Port 3
+
+  0xA004_0000    Device Registers (confirmed func 0, e.g. 0xA004362C -> REG_STATUS)
+  0xA005_0000    Device Registers (confirmed func 1)
+  0xA006_0000    Device Registers (confirmed func 2)
+  0xA007_0000    Device Registers (confirmed func 3)
+
+  0xA008_0000    ???
+  0xA008_0400      ??? Func0
+  0xA008_0800      ??? Func1
+    Note: these don't seem to exist for Func2/3.
+
+Control register space:
+  [0xC001_0000] = 0x00CC_CA20  Mode
+  [0xC001_0004] = 0x0600_0200  Status
+  [0xC001_0008] = 0x0010_0001  GPIO_MSG
+  [0xC001_000C] = 0x0000_0000  Event
+  [0xC001_0010] = 0x0000_0000
+  [0xC001_0014] = 0x0000_0000  Series APE+0x14 Unk Func0
+  [0xC001_0018] = 0x0000_0000  Series APE+0x18 Unk Func0
+  [0xC001_001C] = 0x0000_0000  Series APE+0x1C Unk Func0
+  [0xC001_0020] = 0x0000_0000  Series APE+0x20 Unk Func0
+  [0xC001_0024] = 0x0000_0000  Series APE+0x24 Unk Func1
+  [0xC001_0028] = 0x6022_0000  *** Pointer to Func0 APE SHM. ??
+  [0xC001_002C] = 0x00C0_C000  Mode 2
+  [0xC001_0030] = 0x0000_0210  Status 2
+  [0xC001_0034] = 0x0000_0000
+  [0xC001_0038] = 0x00FF_0000  <-- ?
+  [0xC001_003C] = 0x00FF_0000  <-- ?
+  [0xC001_0040] = 0x0000_0000
+  [0xC001_0044] = 0x0000_0000
+  [0xC001_0048] = 0x0000_0000
+  [0xC001_004C] = 0x0000_0000
+  [0xC001_0050] = 0x0000_0000
+  [0xC001_0054] = 0x0000_0000
+  [0xC001_0058] = 0x0000_0000
+  [0xC001_005C] = 0x0000_0000
+  [0xC001_0060] = 0x0000_0000
+  [0xC001_0064] = 0x0000_0000
+  [0xC001_0068] = 0x0000_0000
+  [0xC001_006C] = 0x6022_1000  *** Pointer to Func1 APE SHM. ??
+                                 Only bits 12-16 can be modified.
+                                 => range [0x6022_0000, 0x6023_F000]
+  [0xC001_0070] = 0xA000_0000  *** Func0 unk addr
+  [0xC001_0074] = 0xA002_0000  *** Func0 unk addr
+  [0xC001_0078] = 0x0000_0004  <
+  [0xC001_007C] = 0x0000_0004  <
+  [0xC001_0080] = 0x1A06_1063
+  [0xC001_0084] = 0x7E06_5063
+  [0xC001_0088] = 0x0000_0000
+  [0xC001_008C] = 0x0000_0004  <
+  [0xC001_0090] = 0x0000_0000
+  [0xC001_0094] = 0x0000_0000
+  [0xC001_0098] = 0x3F00_003F  <-- Func0 unk, possibly control status,
+                                     slightly different to F1/F2/F3
+  [0xC001_009C] = 0x7E00_107F  <-- Func0/1 unk, possibly control/status
+  [0xC001_00A0] = 0x0000_0000
+  [0xC001_00A4] = 0x0000_0000
+  [0xC001_00A8] = 0x75F9_2D27  some timer
+  [0xC001_00AC] = 0x0601_8778  some timer
+  [0xC001_00B0] = 0x000F_6013  some timer: Ticks
+  [0xC001_00B4] = 0xA004_0000                 Func0 devregs addr (RO)
+  [0xC001_00B8] = 0x0000_0003  GPIO (pin0,1 UNKIN)
+  [0xC001_00BC] = 0x0000_0000  GINT (TODO: see DIAG)
+  [0xC001_00C0] = 0x0000_0000
+  [0xC001_00C4] = 0x0000_0000
+  [0xC001_00C8] = 0x0000_0000
+  [0xC001_00CC] = 0x0000_0000
+  [0xC001_00D0] = 0x0000_0000
+  [0xC001_00D4] = 0x0000_0000
+  [0xC001_00D8] = 0x0000_003C
+  [0xC001_00DC] = 0x0000_0000
+  [0xC001_00E0] = 0x8000_0000  "XOFF0"
+  [0xC001_00E4] = 0x0000_0000
+  [0xC001_00E8] = 0x0000_0000
+  [0xC001_00EC] = 0x0000_0080
+  [0xC001_00F0] = 0x0000_0000
+  [0xC001_00F4] = 0x0000_0000
+  [0xC001_00F8] = 0x0000_0000
+  [0xC001_00FC] = 0xA000_4000  Func1 unk addr
+  [0xC001_0100] = 0xA005_0000                 Func1 devregs addr (RO)
+  [0xC001_0104] = 0x8000_0000  "XOFF1"
+  [0xC001_0108] = 0x0000_0000  "CM3"
+  [0xC001_010C] = 0xA002_2000  Func1 unk addr
+  [0xC001_0110] = 0x0000_0004  <
+  [0xC001_0114] = 0x0000_0000
+  [0xC001_0118] = 0x0000_0000
+  [0xC001_011C] = 0x3F00_003F  <-- Func1 unk, possibly control/status
+  [0xC001_0120] = 0x0000_0000  Series APE+1C Unk Func1
+  [0xC001_0124] = 0x00FF_0000  <-- ?
+
+  [0xC001_0128] = 0x0000_0000
+  [0xC001_012C] = 0x0000_0000
+  [0xC001_0130] = 0x0000_0000
+  [0xC001_0134] = 0x0000_0000
+  [0xC001_0138] = 0x0000_0000
+  [0xC001_013C] = 0x0000_0000
+  [0xC001_0140] = 0x0000_0000
+  [0xC001_0144] = 0x0000_0000
+  [0xC001_0148] = 0x0000_0000
+  [0xC001_014C] = 0x0000_0000
+  [0xC001_0150] = 0x0000_0000
+  [0xC001_0154] = 0x0000_0000
+  [0xC001_0158] = 0x0000_0000
+  [0xC001_015C] = 0x0000_0000
+  [0xC001_0160] = 0x0000_0000
+  [0xC001_0164] = 0x0000_0000
+  [0xC001_0168] = 0x0000_0000
+  [0xC001_016C] = 0x0000_0000
+  [0xC001_0170] = 0x0000_0000
+  [0xC001_0174] = 0x0000_0000
+  [0xC001_0178] = 0x0000_0000
+  [0xC001_017C] = 0x0000_0000
+  [0xC001_0180] = 0x0000_0000
+  [0xC001_0184] = 0x0000_0000
+  [0xC001_0188] = 0x0000_0000
+  [0xC001_018C] = 0x0000_0000
+  [0xC001_0190] = 0x0000_0000
+  [0xC001_0194] = 0x0000_0000
+  [0xC001_0198] = 0x0000_0000
+  [0xC001_019C] = 0x0000_0000
+  [0xC001_01A0] = 0x0000_0000
+  [0xC001_01A4] = 0x0000_0000
+  [0xC001_01A8] = 0x0000_0000
+  [0xC001_01AC] = 0x0000_0000
+  [0xC001_01B0] = 0x0000_0000
+  [0xC001_01B4] = 0x0000_0000
+  [0xC001_01B8] = 0x0000_0000
+  [0xC001_01BC] = 0x0000_0000
+  [0xC001_01C0] = 0x0000_0000
+  [0xC001_01C4] = 0x0000_0000
+  [0xC001_01C8] = 0x0000_0000
+  [0xC001_01CC] = 0x0000_0000
+  [0xC001_01D0] = 0x0000_0000
+  [0xC001_01D4] = 0x0000_0000
+  [0xC001_01D8] = 0x0000_0000
+  [0xC001_01DC] = 0x0000_0000
+  [0xC001_01E0] = 0x0000_0000
+  [0xC001_01E4] = 0x0000_0000
+  [0xC001_01E8] = 0x0000_0000
+  [0xC001_01EC] = 0x0000_0000
+  [0xC001_01F0] = 0x0000_0000
+  [0xC001_01F4] = 0x0000_0000
+  [0xC001_01F8] = 0x0000_0000
+  [0xC001_01FC] = 0x0000_0000
+
+    ----------------------------
+  [0xC001_0200] = 0x0000_0000  (TX/RX stuff)               -- Func2-related stuff probably starts here --
+  [0xC001_0204] = 0x0000_0000
+  [0xC001_0208] = 0x0000_0000
+  [0xC001_020C] = 0xA000_8000  Func2 unk addr
+  [0xC001_0210] = 0xA002_4000  Func2 unk addr
+  [0xC001_0214] = 0x0000_0004  (TX/RX stuff)
+  [0xC001_0218] = 0x0000_0000  (TX/RX stuff)
+  [0xC001_021C] = 0x7E00_107F  (TX/RX stuff)
+  [0xC001_0220] = 0x0000_0004       <-- possible status/control stuff
+  [0xC001_0224] = 0x0000_0000
+  [0xC001_0228] = 0x0000_0000
+  [0xC001_022C] = 0x3F00_003F       <-- possible status/control stuff
+  [0xC001_0230] = 0x6022_2000  Func2 APE SHM...
+  [0xC001_0234] = 0xA006_0000  Func2 devreg...
+  [0xC001_0238] = 0x8000_0000  Func2 thing always 0x8000_0000?
+  [0xC001_023C] = 0x0000_0000  \
+  [0xC001_0240] = 0x0000_0000   \
+  [0xC001_0244] = 0x0000_0000    \
+  [0xC001_0248] = 0x0000_0000     \
+  [0xC001_024C] = 0x0000_0000     | could be RFU
+  [0xC001_0250] = 0x0000_0000     |
+  [0xC001_0254] = 0x0000_0000
+  [0xC001_0258] = 0x0000_0000
+  [0xC001_025C] = 0x0000_0000
+  [0xC001_0260] = 0x0000_0000
+  [0xC001_0264] = 0x0000_0000
+  [0xC001_0268] = 0x0000_0000
+  [0xC001_026C] = 0x0000_0000
+  [0xC001_0270] = 0x0000_0000
+  [0xC001_0274] = 0x0000_0000
+  [0xC001_0278] = 0x0000_0000
+  [0xC001_027C] = 0x0000_0000
+  [0xC001_0280] = 0x0000_0000
+  [0xC001_0284] = 0x0000_0000
+  [0xC001_0288] = 0x0000_0000
+  [0xC001_028C] = 0x0000_0000
+  [0xC001_0290] = 0x0000_0000
+  [0xC001_0294] = 0x0000_0000
+  [0xC001_0298] = 0x0000_0000
+  [0xC001_029C] = 0x0000_0000
+  [0xC001_02A0] = 0x0000_0000
+  [0xC001_02A4] = 0x0000_0000
+  [0xC001_02A8] = 0x0000_0000
+  [0xC001_02AC] = 0x0000_0000
+  [0xC001_02B0] = 0x0000_0000
+  [0xC001_02B4] = 0x0000_0000
+  [0xC001_02B8] = 0x0000_0000
+  [0xC001_02BC] = 0x0000_0000
+  [0xC001_02C0] = 0x0000_0000
+  [0xC001_02C4] = 0x0000_0000
+  [0xC001_02C8] = 0x0000_0000
+  [0xC001_02CC] = 0x0000_0000
+  [0xC001_02D0] = 0x0000_0000
+  [0xC001_02D4] = 0x0000_0000
+  [0xC001_02D8] = 0x0000_0000
+  [0xC001_02DC] = 0x0000_0000
+  [0xC001_02E0] = 0x0000_0000
+  [0xC001_02E4] = 0x0000_0000
+  [0xC001_02E8] = 0x0000_0000     |
+  [0xC001_02EC] = 0x0000_0000     |
+  [0xC001_02F0] = 0x0000_0000     /
+  [0xC001_02F4] = 0x0000_0000    /
+  [0xC001_02F8] = 0x0000_0000   /
+  [0xC001_02FC] = 0x0000_0000  /
+  [0xC001_0300] = 0x0000_0000  (TX/RX stuff)               -- Func3-related stuff probably starts here --
+  [0xC001_0304] = 0x0000_0000
+  [0xC001_0308] = 0x0000_0000
+  [0xC001_030C] = 0xA000_C000  Func3 unk addr
+  [0xC001_0310] = 0xA002_6000  Func3 unk addr
+  [0xC001_0314] = 0x0000_0004  (TX/RX stuff)
+  [0xC001_0318] = 0x0000_0000  (TX/RX stuff)
+  [0xC001_031C] = 0x7E00_107F  (TX/RX stuff)
+  [0xC001_0320] = 0x0000_0004       <-- same
+  [0xC001_0324] = 0x0000_0000
+  [0xC001_0328] = 0x0000_0000
+  [0xC001_032C] = 0x3F00_003F       <-- same
+  [0xC001_0330] = 0x6022_3000  Func3 APE SHM
+  [0xC001_0334] = 0xA007_0000  Func3 devreg
+  [0xC001_0338] = 0x8000_0000  Func3 thing always 0x8000_0000?
+  [0xC001_033C] = 0x0000_0000
+  [0xC001_0340] = 0x0000_0000
