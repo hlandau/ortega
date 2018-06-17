@@ -238,11 +238,11 @@ specification.
 
 ### Incorporated Resources
 
-This specification **must** be read in associated with the following resources:
+This specification **must** be read in association with the following resources:
 
   - The [register manual published by Broadcom]();
 
-  - The **resource definition file** rovided with this specification. This
+  - The **resource definition file** provided with this specification. This
     provides machine readable definitions for registers and other numbered
     resources; this specification text does not duplicate information available
     in the resource definition file.
