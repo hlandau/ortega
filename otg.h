@@ -422,6 +422,7 @@
 #define REG_GRC_MODE_CONTROL__PCIE_TL_DL_PL_MAPPING_2 0x20000000
 #define REG_GRC_MODE_CONTROL__PCIE_TL_DL_PL_MAPPING_3 0x80000000
 #define REG_GRC_MODE_CONTROL__PCIE_TL_DL_PL__MASK     0xA0400000
+#define REG_GRC_MODE_CONTROL__HOST_STACK_UP           0x00010000
 #define REG_GRC_MODE_CONTROL__TIME_SYNC_MODE_ENABLE   0x00080000
 #define REG_GRC_MODE_CONTROL__NVRAM_WRITE_ENABLE      0x00200000
 #define REG_GRC_MODE_CONTROL__B2HRX_BYTE_SWAP         0x00000080
@@ -1469,6 +1470,8 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 //   0x02: Unknown, complex, generates 0xF4, 0xEB
 //   0x08: Unknown, generates log message 0x08
 //   0x0A: Unknown, generates log messages 0x0A, 0xEB. based on port number?
+//   0x0E: SMBus Bus0
+//   0x10: SMBus Bus1
 //   0x11: RMU Egress
 //   0x14: General Status Change (Occurs when PCIe link status change/a function GRC is reset/"Ds" changes?)
 //   0x18: Vmain/Vaux status change?
@@ -1534,6 +1537,12 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__MODE__REVERSE_ARB_BYTE  0x00001000
 //   bit 0x0000_2000: Unknown, set by diag tools when loading bootcode
 //     after RX CPU halt
+#define REG_APE_MODE__CHANNEL0_2_STATUS   0x0000C000
+//   bit 0x0000_4000 \_ set by APE firmware when channel 0 or 2 is up?
+//   bit 0x0000_8000 /
+#define REG_APE_MODE__CHANNEL1_3_STATUS   0xC0000000
+//   bit 0x4000_0000 \_ set by APE firmware when channel 1 or 3 is up?
+//   bit 0x8000_0000 /
 #define REG_APE__MODE__MEMORY_ECC     0x00040000
 //   bit 0x0008_0000: "~IcodePipRd" (active low)
 #define REG_APE__MODE__ICODE_PIP_RD_DISABLE   0x00080000
@@ -1603,6 +1612,8 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__EVENT__1         0x0000001
 
 // [0x0014]  Series APE+0x14 Unknown - Func0
+//   bit 30: ?
+
 // [0x0018]  Series APE+0x14 Unknown - Func0
 // Examined on APE Packet RX?
 
@@ -1656,6 +1667,8 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__STATUS_2__LAN_2_DSTATE     0x0004 /* might be W2C has-changed indicator */
 #define REG_APE__STATUS_2__LAN_3_DSTATE     0x0080 /* might be W2C has-changed indicator */
 
+// [0x0054]  Unknown, bit 0 checked by INT H2B
+
 // [0x006C]  Unknown Mysterious
 // Observed: 0x6022_1000, which is Func1 APE SHM
 
@@ -1703,6 +1716,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 
 
 // [0x00A8]  Unknown, monotonically increasing value.
+//   Reading this may have side effects?
 // [0x00AC]  Unknown, monotonically increasing value.
 
 
@@ -2263,6 +2277,8 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // Change interrupt handler in some circumstances.
 // Bits 0-3 of this may correspond to ports (1<<0 == port 0-related bit, etc.)
 //
+// Bit 0x1000 related to H2B, set by H2B interrupt
+// Bit 0x2000 set by RMUEgress interrupt
 // Bit 0x4000 causes a search for an APE_CODE image in main loop?
 // Used for FW update?
 //
@@ -2285,6 +2301,10 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // [0x4844] Unknown
 // Touched during APE init, might be some obsolete thing from NVM
 
+// [0x4848] Sometimes has temperature and other data written to it
+
+// [0x484C] Unknown
+
 // The APE code copies the contents of REG_CHIP_ID to this word.
 //
 // NOTE: FUNCTION 0 ONLY.
@@ -2294,7 +2314,8 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define NCSI_CH_REG(Ch, Reg) APE_REG(0x4900 + 64*4*(Ch) + (Reg))
 
 // [NCSIPORT+0x00] Unknown. Calling this "Info".
-//   bit  0: Enabled?
+//   bit  0: Enabled
+//     This can be modified via NCSI SELECT PACKAGE and NCSI DESELECT PACKAGE
 //   bit  1: "txpt"
 //   bit  2: "ready"    ] These are ORed into this word by the APE
 //   bit  3: "init"     ] for all ports at startup.
@@ -2303,12 +2324,17 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 //   bit  6: "serdes"
 //   bit  7: ?
 //   bit  8: "vlan"
-//   bit 10: "B2H"
-//   bit 11: "B2N"
-//   bit 12: "EEE"
-//   bit 13: unknown, but set from GEN_CFG_HW__MINI_PCI...
-//   bit 14: "driver"
-//   bit 15: if set, "pDead"
+//   bit  9: ?                                                    <-\
+//   bit 10: "B2H"                                                  |
+//   bit 11: "B2N"                                                  |
+//   bit 12: "EEE"                                                  |
+//   bit 13: unknown, but set from GEN_CFG_HW__MINI_PCI...          |-- related, used by APE tx thingy
+//   bit 14: "driver"                                               |
+//   bit 15: if set, "pDead"                                        |
+//   bit 16: ?                                                      |
+//   bit 17: ?  [could be 'needs reset']                          <-/
+//   bit 18:
+//   bit 19: ?  [determines if NCSI sometimes]
 #define REG_APE__NCSI_CHANNELN_INFO(Ch)         NCSI_CH_REG(Ch, 0x00)
 #define REG_APE__NCSI_CHANNELN_INFO__ENABLED    (1U<< 0)
 #define REG_APE__NCSI_CHANNELN_INFO__TXPT       (1U<< 1)
@@ -2330,8 +2356,10 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // [NCSIPORT+0x04] "McId", otherwise unknown.
 #define REG_APE__NCSI_CHANNELN_MCID(Ch)         NCSI_CH_REG(Ch, 0x04)
 // [NCSIPORT+0x08] "aen"
+//   Set via NCSI ENABLE AEN.
 #define REG_APE__NCSI_CHANNELN_AEN(Ch)          NCSI_CH_REG(Ch, 0x08)
 // [NCSIPORT+0x0C] "bfilt"
+//   Set via NCSI ENABLE AEN.
 //   bit 0: ARP Packet
 //   bit 1: DHCP Client Packet
 //   bit 2: DHCP Server Packet
@@ -2349,10 +2377,34 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 //   Remaining bits: probably unused
 #define REG_APE__NCSI_CHANNELN_MFILT(Ch)        NCSI_CH_REG(Ch, 0x10)
 // [NCSIPORT+0x14] "Setting" (first word)
+//   This is the "Link Settings" value from NCSI Set Link.
+//   bit 0: Autonegotiation enabled?
+//   bit 1: Link Speed 10M enable
+//   bit 2: Link Speed 100M enable
+//   bit 3: Link Speed 1000M enable
+//   bit 4: Link Speed 10G enable
+//   bits 5:7: reserved
+//   bit 8: Half duplex enable
+//   bit 9: Full duplex enable
+//   bit 10: Pause capability enable
+//   bit 11: Asymmetric pause capability enable
+//   bit 12: OEM link settings field valid
 #define REG_APE__NCSI_CHANNELN_SETTING_1(Ch)    NCSI_CH_REG(Ch, 0x14)
 // [NCSIPORT+0x18] "Setting" (second word)
+//   This is the "OEM Settings" value from NCSI Set Link.
 #define REG_APE__NCSI_CHANNELN_SETTING_2(Ch)    NCSI_CH_REG(Ch, 0x18)
+
 // [NCSIPORT+0x1C] "VLAN"
+//   Receives VLAN mode from NCSI specification "Enable VLAN" command.
+//   0x01 - VLAN only.
+//     Only packets tagged with correct VLAN go to NCSI.
+//     Nontagged/non-matching packets don't go to NCSI.
+//   0x02 - VLAN+non-VLAN.
+//     VLAN-tagged packets with correct VLAN
+//     and non-tagged packets go to NCSI.
+//   0x03 - Any VLAN+non-VLAN.
+//     Any VLAN-tagged packet goes to NCSI, no matter the VLAN.
+//     Non-tagged packets also go to NCSI.
 #define REG_APE__NCSI_CHANNELN_VLAN(Ch)         NCSI_CH_REG(Ch, 0x1C)
 
 // [NCSIPORT+0x24] "altHostMac". This appears to be specific to NCSI MAC3.
@@ -2367,7 +2419,14 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 
 // [NCSIPORT+0x30+16N] Unknown series, 0 <= N < 4
 // Contains an index in range [0, 17). Related to g_bss113B04.
-//
+// Each entry:
+//   4  ui  
+//   4  ui  MAC High
+//   4  ui  MAC Low
+//   4  ui
+// Looks like an index of the number of RMU block MAC slots which have
+// been filled for a given port.
+
 // [NCSIPORT+0x34+16N] MAC Address
 // Lower 16 bits of this word contains the upper 16 bits of the MAC.
 // (Strange MAC representation.)
@@ -2477,12 +2536,14 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // [NCSIPORT+0xC0] "ctrlStat": "allRx"
 #define REG_APE__NCSI_CHANNELN_CTRLSTAT_ALL_RX(Ch)       NCSI_CH_REG(Ch, 0xC0)
 // [NCSIPORT+0xC4] "ctrlStat": "tx"
+//   Incremented by some function. Could be TX function.
 #define REG_APE__NCSI_CHANNELN_CTRLSTAT_TX(Ch)           NCSI_CH_REG(Ch, 0xC4)
 // [NCSIPORT+0xC8] "ctrlStat": "aen"
+//   Incremented by some function.
 #define REG_APE__NCSI_CHANNELN_CTRLSTAT_AEN(Ch)          NCSI_CH_REG(Ch, 0xC8)
 
 // --- egress statistics ---
-// [NCSIPORT+0xCC] "egrStat": "rx" (word 1)
+// [NCSIPORT+0xCC] "egrStat": "rx" (word 1)   -- incremented when word 2 rolls over
 #define REG_APE__NCSI_CHANNELN_EGRSTAT_RX_1(Ch)   NCSI_CH_REG(Ch, 0xCC)
 // [NCSIPORT+0xD0] "egrStat": "rx" (word 2)
 #define REG_APE__NCSI_CHANNELN_EGRSTAT_RX_2(Ch)   NCSI_CH_REG(Ch, 0xD0)
@@ -2682,6 +2743,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__SMBUS_1_EVENT_ENABLE__SLV_ARP_EVENT               0x00100000
 
 // [APEPER+0x13C] SMBUS Event St
+// This register is W2C.
 #define REG_APE__SMBUS_1_EVENT_ST      APE_REG(0x813C)
 #define REG_APE__SMBUS_1_EVENT_ST__MSTR_RX_FIFO_FULL           0x80000000
 #define REG_APE__SMBUS_1_EVENT_ST__MSTR_RX_THRESHOLD_HIT       0x40000000
@@ -2807,6 +2869,9 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__BMC_NC_RX_SRC_MAC_MATCHN_HIGH(Num) APE_REG(0x830C+8*(Num)+0)
 #define REG_APE__BMC_NC_RX_SRC_MAC_MATCHN_LOW(Num)  APE_REG(0x830C+8*(Num)+4)
 
+// [APEPER+0x350] BMC->NC
+//   Probably for reading from buffer. Read this register repeatedly.
+
 // [APEPER+0x354] BMC->NC RX Control
 #define REG_APE__BMC_NC_RX_CONTROL    APE_REG(0x8354)
 #define REG_APE__BMC_NC_RX_CONTROL__FLOW_CONTROL         0x01000000
@@ -2860,7 +2925,14 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 
 // unknown: 0x378
 //   lots of words are written to this at once?
+//   It seems like you write a packet to the RMU by writing the words to this
+//   in sequence. Is this to the BMC or to the network?
+//
 // unknown: 0x37C
+//   This seems to be masked by LAST_BYTE_COUNT__MASK to allow a frame to have
+//   a size which is not a multiple of four bytes. It also seems to indicate
+//   the end of a frame (for frames with sizes which are a multiple of four
+//   bytes, LAST_BYTE_COUNT__MASK is set to zero and this is written as zero).
 
 // [APEPER+0x380] NC->BMC TX Status 1
 // bits 0-31: "txpkt"
@@ -2889,6 +2961,8 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__ARB_CONTROL__BYPASS    0x00000020
 #define REG_APE__ARB_CONTROL__START     0x00000010
 #define REG_APE__ARB_CONTROL__DISABLE   0x00000008
+
+// [APEPER+0x3B0] ???
 
 // === APE Peripheral Block 0x400 - Locks ==============================
 // tg3 suggests the lock ports below are allocated as follows:
