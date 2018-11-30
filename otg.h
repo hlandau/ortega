@@ -1072,7 +1072,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
                     0x0000_0000: LED Mode: MAC
                     0x0000_0004: LED Mode: PHY1
                     0x0000_0008: LED Mode: PHY2
-                  qq: Unknown field copied verbatim from 2 low bits of GEN_CFG_HW
+                  qq: Voltage source, from GEN_CFG_HW bits 0:1
                   PP: PHY Type
                     0x0000_0000: PHY Type: Unknown  (TG3: PHY_TYPE_UNKNOWN)
                     0x0000_0010: PHY Type: GPHY     (TG3: PHY_TYPE_COPPER)
@@ -1715,8 +1715,8 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // 
 // Looks like these registers were moved elsewhere when tg3 was expanded to support
 // third/fourth ports.
-#define REG_APE__LOCK_REQ         APE_REG(0x002C)
-#define REG_APE__LOCK_GRANT       APE_REG(0x004C)
+//#define REG_APE__LOCK_REQ         APE_REG(0x002C)
+//#define REG_APE__LOCK_GRANT       APE_REG(0x004C)
 
 // [0x0020]  Series APE+0x20 Unknown - Func0
 // [0x0024]  Series APE+0x20 Unknown - Func1

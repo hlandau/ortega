@@ -98,6 +98,7 @@ def run():
     NVM=dict(order=5, title='NVM Layout', numpad=3, defaultSource='Header'),
     DIRENTRY=dict(order=6, title='NVM Directory Entries', numpad=2, defaultSource='Header'),
     PORT=dict(order=7, title='Ports', numpad=1),
+    AM=dict(order=8, title='APE Memory Map', numpad=8),
   )
   for k, v in dRes.items():
     resType, resNum = k.split(' ', 1)
@@ -142,7 +143,7 @@ def run():
     for reg in group['members']:
       e = ET.SubElement(regSec, 'div', {"class":"res res-%s res-src-%s" % (groupcl, reg.get('Source', defaultSource).lower()), "id":"%s-%04x" % (groupcl,reg['Num'])})
       header = ET.SubElement(e, 'h2')
-      if groupType == 'MEM':
+      if groupType == 'MEM' or groupType == 'AM':
         opener = '[%s%s—%s] ' % (pfx, nicenum(reg['Num'],numpad), nicenum(reg['End'],numpad))
       else:
         opener = '[%s%s] ' % (pfx, nicenum(reg['Num'],numpad,' '))

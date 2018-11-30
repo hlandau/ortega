@@ -116,33 +116,44 @@ Resources:
       the APE. There is one such range for each function, and the APE can
       address each one independently, while each RX CPU has its shared memory
       region mapped here and cannot see the shared memory regions of other
-      functions.
+      functions. (For reference, in the APE memory space, this is mapped at
+      `0x6022_0000 + f*0x1000`, where f is the function number.)
   MEM 0xC001_8000:
     Name: APE Registers II
     End: 0xC001_8FFF
     Notes: |
       Seems to be more APE registers. Includes lock fields which were moved
       from APE Registers. Probably an extension of the APE Registers block when
-      they ran out of room. End address is guessed.
+      they ran out of room. End address is guessed. This is the "peripheral"
+      block and includes functions such as a UART (probably for debug/not
+      connected in production), the SMBus device, the NC-SI RGMII interface to
+      the BMC, etc., as well as lock registers seemingly to allow arbitration
+      between RX CPUs, the APE, and a host driver, etc.
   MEM 0xC001_9000:
     Name: Management Filters
     End: 0xC001_93FF
     Notes: |
       Specified in manual. Contents and purpose unknown. End address is guessed
-      based on standard register block size.
+      based on standard register block size. Never observed and I'm not
+      entirely convinced this is still there, it could be vestigial and
+      erroneously left in the manual. (APE has been observed configuring
+      management filter-like things via another block specific to the APE
+      memory space, so this seems like an APE responsibility now.)
   MEM 0xC002_8000:
     Name: APE Peripherals
     End: 0xC002_FFFF
     Source: Guessed
     Notes: |
       Need to check the diag tools again to see if this is right. End address
-      is randomly chosen. Peripherals are thought to include a UART.
+      is randomly chosen. Peripherals are thought to include a UART. These
+      are old notes, isn't this at 0xC001_8000 above?
   MEM 0xC003_0000:
     Name: APE Scratchpad
     End: 0xC003_6FFF
     Notes: |
       Purpose unknown. Not to be confused with the APE event scratchpad used to
-      send messages to the APE, which uses the APE SHM area.
+      send messages to the APE, which uses the APE SHM area. Does this even
+      still exist? Not proven, likely vestigial.
   MEM 0xC003_7000:
     Name: Unmapped
     End: 0xC003_7FFF
@@ -155,21 +166,51 @@ Resources:
       Purpose unknown. Doesn't seem to be available.
   GEN 0x0000:
     Name: Firmware Mailbox
+    Notes: |
+      This is set to BOOTCODE_READY_MAGIC to indicate to the host driver
+      when the bootcode is up and has finished initialising the device,
+      and DRIVER_READY_MAGIC by host drivers when they come up.
   GEN 0x0004:
     Name: Data Sig
+    Notes: |
+      Not sure if this is used. Set to DRIVER_READY_MAGIC by the RX CPU
+      during initialisation.
   GEN 0x0008:
     Name: Cfg
     Bits:
-      0-3: TODO
-      4: "PHY Type: GPHY"
-      5: "PHY Type: SERDES"
+      0-1: "From bits 0:1 of GEN_CFG_HW, believed to be voltage source setting"
+      2-3:
+        Name: "LED Mode"
+        Values:
+          0: MAC
+          1: PHY1
+          2: PHY2
+      4-5:
+        Name: "PHY Type"
+        Values:
+          0: Unknown
+          1: GPHY
+          2: SERDES
       6: WOL Enable
-      7-31: TODO
+      7: "ASF Enable (/MGMT FW Enable), nowadays APE Enable"
+      8:
+        Name: "EEPROM Write Protect (likely vestigial)"
+        TG3: EEPROM_WP
+      9: Reverse N-way
+      10: WOL Limit 10M
+      12: Mini-PCI
+      14: Fiber WOL
+      16: PXE Expansion ROM Enable
+      17: Link Idle Power Mode Enable
+      19: Disable Power Saving
+      20: No GPIO2
+      21: APE Enable
+      22-31: Not used (0)
     Notes: |
-      TODO.
-
-      This is set by stage1 based on various fields in GEN_CFG_FEATURE and
-      GEN_CFG_HW as loaded from NVM.
+      Rather a hodgepodge mongrel field of various configuration bits. It
+      aggregates various other configuration fields, many of which are in
+      GEN_CFG_FEATURE and GEN_CFG_HW, as loaded from NVM. Look at those fields
+      for documentation on the bitfields of this word.
   GEN 0x000C:
     Name: Version
     Notes: |
@@ -215,7 +256,7 @@ Resources:
         Name: Skip Main Loop Init
         Notes: |
           Name is a guess.
-      1:
+      2:
         Name: Force WOL
         Notes: |
           Name is a guess. Forces power down of some parts of the chip in
@@ -229,7 +270,7 @@ Resources:
         Notes: |
           Indicates code already loaded. Seems related to fastboot.
     Notes: |
-      Field names are guessed.
+      Field names are guessed. Possibly fastboot related.
   GEN 0x01DC:
     Source: Unknown
     Notes: |
@@ -245,6 +286,7 @@ Resources:
       Register manual states "recommended value" is 0x474C_0000.
   GEN 0x01E4:
     Name: Cfg Feature
+    Notes: Set from NVM on a per-function basis.
     Bits:
       0: WOL Enable
       1:
@@ -253,7 +295,19 @@ Resources:
       2-5:
         Name: PXE Speed
         Unobserved: true
-        Notes: Unknown aside from field name.
+        Values:
+          0: Autonegotiate
+          1: 10M Half Duplex
+          2: 10M Full Duplex
+          3: 100M Half Duplex
+          4: 100M Full Duplex
+          5: 1000M Half Duplex
+          6: 1000M Full Duplex
+      6:
+        Name: Force PCI Mode
+        Unobserved: true
+        Notes: |
+          From QLMAPI. If not set, autodetect. Probably vestigial field.
       7:
         Name: ASF Enable
         Notes: |
@@ -261,7 +315,17 @@ Resources:
           and MII/EMAC is not initialized in stage2.
       8-11:
         Name: PXE BAR Size
-        Notes: Involved in expansion ROM initialization.
+        Values:
+          0: 64 KiB
+          1: 128 KiB
+          2: 256 KiB
+          3: 512 KiB
+          4: 1 MiB
+          5: 2 MiB
+          6: 4 MiB
+          7: 8 MiB
+          8: 16 MiB
+        Notes: Expansion ROM size.
       12:
         Name: Disable Setup Message
         Notes: |
@@ -275,18 +339,25 @@ Resources:
       14-15:
         Name: PXE Bootstrap Type
         Unobserved: true
-        Notes: Unknown aside from field name.
+        Values:
+          0: BBS
+          1: INT 18h
+          2: INT 19h
+          3: Disable PXE
       16-19:
         Name: PXE Message Timeout
         Unobserved: true
         Notes: |
-          Unknown aside from field name. Probably length time given to press
-          hotkey at PXE option ROM boot prompt.
+          Timeout in seconds during PXE setup prompt during PXE option ROM.
       20-21:
         Name: PXE Boot Protocol
         Unobserved: true
+        Values:
+          0: PXE
+          1: RPL
+          2: BOOTP
         Notes: |
-          Used by PXE Option ROM. Meaning unknown.
+          Used by PXE Option ROM.
       22:
         Name: LOM Design
         Notes: |
@@ -297,17 +368,27 @@ Resources:
       23-24:
         Name: VAUX Cutoff Delay
         Unobserved: true
+        Values:
+          0: 250ms
+          1: 150ms
+          2: 50ms
+          3: 0ms
       25:
         Name: WOL Limit 10
         Unobserved: true
+        Notes: |
+          If set, WOL speed must be limited to 10M only. Else 100M is allowed for WOL.
       26:
         Name: Link Idle
         Notes: |
           Sets `REG_CPMU_CONTROL__LINK_IDLE_POWER_MODE_ENABLE`.
+
+          Long ago, bits 26:27 were "driver WOL enable". Back then, 0=WOL Disable,
+          1=Magic Packet WOL, 2=Interesting Packet WOL, 3=Both.
       27:
         Unobserved: true
         Notes: |
-          Was driver_wol_enable?
+          See bit 26.
       28:
         Name: Cable Sense
         Unobserved: true
@@ -326,17 +407,43 @@ Resources:
           Sets `REG_CPMU_CONTROL__LINK_SPEED_POWER_MODE_ENABLE`.
   GEN 0x01E8:
     Name: Cfg Hardware
-    Notes: Set from NVM.
+    Notes: Set from NVM on a per-function basis.
     Bits:
+      0-1:
+        Name: Voltage Source
+        Values:
+          0: 1.3V
+          1: 1.8V
+        Notes: Not sure if this is still used, values given are long ago.
       2-3:
         Name: Legacy LED Control
         Notes: |
           If `GEN_CFG_HW__SHASTA_EXT_LED__LEGACY`, the `REG_LED_CONTROL__LED_MODE`
           field is set from this field.
+      4-5:
+        Name: PHY Type
+        Unobserved: true
+        Notes: Long ago. Probably vestigial. Unknown.
+      6:
+        Name: Forced Max PCI Retry
+        Unobserved: true
+        Notes: Long ago. Almost certainly vestigial. Unknown.
+      7-9:
+        Name: Max PCI Retry
+        Unobserved: true
+        Notes: Long ago. Almost certainly vestigial. Unknown.
+      10-11:
+        Name: Dual MAC Mode
+        Unobserved: true
+        Notes: Long ago. Almost certainly vestigial. Unknown.
       12:
         Name: Reverse N-Way
+        Values:
+          0: N-way negotiation (1000->100->10).
+          1: Reverse N-way negotiation (10->100->1000).
         Notes: |
           Meaning unclear aside from name. S2: something to do with VMAIN?
+          "Power saving auto-negotiation mode".
       13:
         Name: Mini PCI
       14:
@@ -363,16 +470,24 @@ Resources:
         Source: Guessed
         Notes: |
           Controls `REG_GRC_MODE_CONTROL__TIME_SYNC_MODE_ENABLE`.
+
+          Was once "Capacitative Coupling".
       18-19:
         Name: Timesync GPIO Mapping
         Source: Guessed
         Notes: |
           Copied to `REG_EAV_REF_CLOCK_CONTROL__TIMESYNC_GPIO_MAPPING`.
+
+          Bit 18 was once "TX SERDES Override"?
+          Bit 19 was once "used to be clkreq"?
       20-22:
         Name: APE GPIO 0 Mapping
         Source: Guessed
         Notes: |
           Copied to `REG_EAV_REF_CLOCK_CONTROL__APE_GPIO_0_MAPPING`.
+
+          Bit 20 was once "used to be ASPM_L0"?
+          Bit 21 was once "used to be ASPM_L1"?
       23-25:
         Name: APE GPIO 1 Mapping
         Source: Guessed
@@ -390,7 +505,7 @@ Resources:
           Copied to `REG_EAV_REF_CLOCK_CONTROL__APE_GPIO_3_MAPPING`.
   GEN 0x01EC:
     Name: Cfg Shared
-    Notes: Set from NVM.
+    Notes: Set from NVM, shared between all functions.
     Bits:
       0:
         Name: Port Swap
@@ -404,10 +519,12 @@ Resources:
         BMAPI: L1ASPM_Debounce_En
       2:
         Name: Fiber WoL Capable
+        BMAPI: FiberWoLCapable
       3:
         Name: Disable Power Saving
         BMAPI: DisablePowerSaving
       7:
+        BMAPI: HotPlugPwrBdgtCnt
         Notes: |
           Causes `REG_GPHY_CONTROL_STATUS__SWITCHING_REGULATOR_POWER_DOWN`.
 
@@ -418,24 +535,61 @@ Resources:
       9-10:
         Notes: |
           Unknown. If set to 0x0000_0200, causes certain MII write during stage1 init.
+      11:
+        QLMAPI: GPIO0 Output Enable
+      13:
+        QLMAPI: GPIO2 Output Enable
+      14:
+        QLMAPI: GPIO0 Output Value
       15:
         Notes: |
           Unknown field, causes LSB in unknown REG 0x64DC to be set during stage1.
+      16:
+        QLMAPI: GPIO2 Output Value
+      17:
+        Name: NCSI Package ID Method
+        QLMAPI: NCSI Package ID Method
+      18-19:
+        Name: NCSI Package ID
+        QLMAPI: NCSI Package ID
+      20:
+        Name: NCSI BMC Connection Method
+        QLMAPI: NCSI BMC Connection Method
+        Values:
+          0: RMII
+          1: SMBus
+        Notes: Determines whether SMBus is used instead of RMII.
+      21:
+        Name: NCSI SMBus Speed
+        Values:
+          0: 100 kHz
+          1: 400 kHz
       22:
-        Name: Link Flap Avoid
+        Name: Link Flap Avoidance
         TG3: NIC_SRAM_LNK_FLAP_AVOID
       23:
         Name: 1G on VAUX OK
         TG3: NIC_SRAM_1G_ON_VAUX_OK
+        QLMAPI: Aux 1G Support
+      24:
+        QLMAPI: Compliance Mode
+      25:
+        QLMAPI: LTR Enable
       26-27:
+        QLMAPI: TPH Features
         Notes: |
           Unknown field. Used in stage1 init.
       28-29:
         Notes: |
           Sets unknown PCIe control REG 0x7C04, but only for IBM or Huawei subsystem IDs.
+          Does this determine number of functions to enable?
       30-31:
         Notes: |
           Unknown field. Used in stage1 init.
+  GEN 0x01F0:
+    Name: Cfg Feature Other Functions
+  GEN 0x01F4:
+    Name: Cfg HW Other Functions
   GEN 0x0214:
     Name: Firmware Version
     Notes: |
@@ -470,6 +624,8 @@ Resources:
         Name: "Unknown SERDES 10 10: 10"
         Notes: |
           Enable some unknown flag in SERDES MII init path. (BLOCK 0x10):0x10 bit 0x10.
+  GEN 0x02AC:
+    Name: Cfg Hardware 2 Other Functions
   GEN 0x02B0:
     Name: CPMU Status
     Notes: |
@@ -1043,6 +1199,8 @@ Resources:
     Alias: RX RISC Register $ra
     Source: Guessed
     Notes: $ra (R31)
+  REG 0x6400:
+    Name: DMA Mode
   REG 0x6408:
     Source: Unknown
     S1: true
@@ -1229,7 +1387,7 @@ Resources:
   REG 0x6838:
     Source: Unknown
     Notes: |
-      Unknown. Used by PXE agent.
+      Unknown. Used by PXE agent. Judging by tg3, seems to relate to legacy SEEPROM access?
   REG 0x6844:
     Name: MDI Control
     S2: true
@@ -1318,36 +1476,75 @@ Resources:
       0: Enable
       1: Write Enable
   REG 0x7C04:
+    Name: PCIe Transaction Cfg
     S1: true
     Source: Unknown
+    Bits:
+      5:
+        Name: LOM
+        BMAPI: PCIE_TRANS_CFG_LOM
+      29:
+        Name: One-Shot MSI
+        BMAPI: PCIE_TRANS_CFG_1SHOT_MSI
     Notes: |
       PCIe-related. tg3 driver calls this `PCIE_TRANSACTION_CFG`, however
       `REG_GRC_MODE_CONTROL` suggests that the same register space can be
       reconfigured to address PCIe Transaction Layer, Data Link Layer or
       Physical Layer registers, so the actual uses of this in the bootcode may
       not actually be accesses to "`PCIE_TRANSACTION_CFG`".
+
+      Bitfields given above are for "`PCIE_TRANSACTION_CFG`".
   APE 0x0000:
     Name: Mode
     Bits:
       0:
         Name: Reset
         Notes: |
-          Used to reset the APE.
+          Used to reset the APE block.
       1:
         Name: Halt
         Notes: |
-          APE is halted if set.
-
-          APE seems to sometimes be reset by diagnostic tools by setting this
-          bit then unsetting it again.
+          APE is halted if set. Setting then unsetting this bit resets the APE
+          to its reset vector, etc.
       2:
         Name: Fast Boot
+        Notes: |
+          Can be used to boot from RAM instead of NVM. Needs more investigation.
+          Takes a full APE image with section headers, etc. so you still need
+          to form a proper image.
       3:
         Name: Host Diag
         Notes: |
           Meaning unknown.
+      5:
+        Name: Event 1
+        Notes: Used to signal the APE that an event from the host is ready for processing in SHM.
+      6:
+        Name: Event 2
+        Notes: Unknown.
+      7:
+        Name: GRCint
+        Notes: Unknown.
+      8:
+        Name: Virtual UART?
+        Notes: Unknown.
+      9:
+        Name: Swap ATB DWORD
+        Notes: Unknown.
+      10:
+        Name: Reverse ATB Byte
+        Notes: Unknown.
+      11:
+        Name: Swap ARB DWORD
+        Notes: Unknown
+      12:
+        Name: Reverse ARB Byte
+        Notes: Unknown
       18:
         Name: Memory ECC
+      19:
+        Name: Icode Pip Read Disable
+        Notes: Unknown.
     Notes: |
       More of these bits can be found in diagnostic utilities, but they don't
       seem too interesting.
@@ -1356,21 +1553,28 @@ Resources:
     Bits:
       0:
         Name: PCIe Reset
+      1:
+        Name: LAN 0 GRC Reset
+        Notes: Might be W2C has-happened indicator
+      3:
+        Name: NVRAM Control Reset
       4:
         Name: LAN 0 Dstate
         Notes: |
           Indicates port is in D3 if set, otherwise the port is in D0-D2.
+
+          Might actually be W2C has-changed indicator.
       5:
         Name: Boot Mode
         Values:
           0: NVRAM
           1: Fast
-      7:
-        Name: NVRAM Control Reset
       9:
         Name: LAN 1 Dstate
         Notes: |
           Indicates port is in D3 if set, otherwise the port is in D0-D2.
+
+          Might actually be W2C has-changed indicator.
       24-27:
         Name: Boot Status B
         Values:
@@ -1408,12 +1612,60 @@ Resources:
           15: Unknown F
   APE 0x0008:
     Name: GPIO Message
+    Notes: |
+      Seems to be related to APE fastboot. In that case the value of it
+      is an APE memory address in the code region.
+
+      If `REG_APE__MODE__FAST_BOOT` is set, and the low two bits of this are
+      not 0b10, ROM hangs (you have to OR 0x2 into the address). Otherwise,
+      they are masked off and the resulting value is used as the reset vector.
+      The resulting value is also stored in this register (i.e., the low two
+      bits are cleared).
   APE 0x000C:
     Name: Event
     Bits:
       0:
         Name: 1
         Notes: Event 1.
+  APE 0x0014:
+    Name: RXBufOffset Func0
+    Bits:
+      0-11: Tail
+      12-23: Head
+      24-25: "?"
+      26-29: Count
+      30: Indicates validity/packet is available to read
+      31: "?"
+    Notes: |
+      AKA "Series APE+0x14", meaning this register for each function.
+      
+      This is examined on the APE Packet RX interrupt, and indicates the offset
+      of an incoming (from-network) frame within the 0xA000_0000 region (APE
+      memory space), which provides access to the from-network RX buffer.
+
+      Diagnostic tools refer to this as "r14x" ("larq_dq").
+      TODO: has flags "ipFrag", "toHost"?
+      TODO: bit 31 indicates some sort of completion?
+  APE 0x0018:
+    Name: RXBufOffset Func1
+    Notes: See APE 0x0014.
+  APE 0x001C:
+    Name: TX To Network Doorbell Func0
+    Bits:
+      0-11:
+        Name: Prob. tail
+        Notes: |
+          Set to offset in 0xA002_0000 buffer space to which LAST block of
+          outgoing frame has just been written
+      12-23:
+        Name: Prob. head
+        Notes: |
+          Set to offset in 0xA002_0000 buffer space to which FIRST block of
+          outgoing frame has just been written
+      24-31:
+        Name: Prob. length in bytes
+    Notes: |
+      Written on APE TX to network after filling part of 0xA002_0000 with a frame.
   APE 0x002C:
     Name: Mode 2
     Notes: |
@@ -1425,12 +1677,106 @@ Resources:
       the silicon was expanded to four ports.
   APE 0x0030:
     Name: Status 2
-  APE 0x004C:
-    Name: Lock Grant (Obsolete)
+    Bits:
+      1:
+        Name: LAN 2 GRC Reset
+        Notes: Might be W2C has-happened indicator
+      2:
+        Name: LAN 2 Dstate
+        Notes: Might be W2C has-changed indicator
+      7:
+        Name: LAN 3 Dstate
+        Notes: Might be W2C has-changed indicator
+      8:
+        Name: LAN 3 GRC Reset
+        Notes: Might be W2C has-happened indicator
+  APE 0x0040:
+    Name: Series APE+0x40 Func0
     Notes: |
-      See `REG_APE__MODE_2`; replaced with `REG_APE__PER_LOCK_GRANT`.
+      Probably the doorbell sent after finishing a B2H transmission.
+  APE 0x0044:
+    Name: Series APE+0x44 Func0
+  APE 0x0054:
+    Name: Unknown H2B related
+  APE 0x006C:
+    Notes: |
+      Unknown, observed to be the value 0x6022_1000, which is the address of
+      Func1 APE SHM in the APE memory map. Purpose unknown.
+  APE 0x0070:
+    Notes: |
+      Unknown, observed to be the value 0xA000_0000 (from-network RX buffer space).
+  APE 0x0074:
+    Notes: |
+      Unknown, observed to be the value 0xA002_0000 (to-network TX buffer space).
+  APE 0x0078:
+    Name: APE RX Pool Mode/Status Func0
+    Bits:
+      0: Halt
+      1: Halt Done
+      2: Enable
+      4: Empty
+      5: Error
+      6: Reset
+      8-23: "fullcnt"
+    Notes: |
+      aka "ARPM".
+  APE 0x007C:
+    Name: APE RX Pool Mode/Status Func1
+    Notes: See Func0.
+  APE 0x0080:
+    Name: APE RX Pool Ret r80x Func0
+    Bits:
+      0-11: Tail
+      12: Head (field width unconfirmed)
+      27: Count (field width unconfirmed)
+    Notes: |
+      "arpm_ret". Used to indicate when the APE is done with a region of the
+      0xA000_0000 RX pool buffer so that it can be used by the hardware to
+      receive another frame.
+  APE 0x0084:
+    Name: APE RX Pool free_pt_a r89x Func0
+    Notes: |
+      Has fields head, tail, ...
+  APE 0x0088:
+    Name: APE RX Pool Ret r80x Func1
+    Notes: See Func0.
+  APE 0x008C:
+    Name: Series APE+0x8C Func0
+  APE 0x0090:
+    Name: APE TX To Net Buffer Allocator Func0
+    Notes: |
+      The low 12 bits of this seem to be an offset into the 0xA002_0000 buffer
+      which determines where the next packet TX'd to the network is to be written
+      by the APE. The low 10 bits are multiplied by 128 to get the offset in bytes.
+      i.e., the "block size" is 128.
+
+      Usage: Write 0x0000_1000 to this register. Poll it until bits 13:14 are
+      not 0b01 (busy wait until allocation complete). The block number for use
+      within the 0xA002_0000 buffer is now in bits 0:11. Each block is 128
+      bytes in size. If a frame is more than one block in size, allocate a
+      block, copy to it, repeat until frame is done. Finally finish it all off
+      by writing to the Series APE+0x1C doorbell with length, first block no.
+      and final block no.
+  APE 0x0094:
+    Name: Series APE+0x94 Func0
+  APE 0x0098:
+    Name: Series APE+0x98 Func0
+  APE 0x009C:
+    Name: APE RX Pool free_pt_a r89x Func1
+    Notes: See Func0.
+  APE 0x00A8:
+    Notes: |
+      Unknown, monotonically increasing value.
+      Reading this may have side effects?
+  APE 0x00AC:
+    Notes: |
+      Unknown, monotonically increasing value.
   APE 0x00B0:
-    Notes: Unknown.
+    Name: Ticks
+    Notes: |
+      I've named this "ticks". Monotonically increasing value.
+  APE 0x00B4:
+    Notes: Unknown, observed 0xA004_0000
   APE 0x00B8:
     Name: GPIO
     Bits:
@@ -1484,6 +1830,58 @@ Resources:
           11: Interrupt Return
     Notes: |
       Seems CPU control related.
+  APE 0x0110:
+    Name: Series APE+0x8C Func1
+  APE 0x0114:
+    Name: Series APE+0x90 APE TX To Net Buffer Allocator Func1
+  APE 0x0118:
+    Name: Series APE+0x94 Func1
+  APE 0x011C:
+    Name: Series APE+0x98 Func1
+  APE 0x0120:
+    Name: Series APE+0x1C Func1
+  APE 0x0200:
+    Name: Series APE+0x14 Func2
+  APE 0x0204:
+    Name: Series APE+0x1C Func2
+  APE 0x0208:
+    Name: Series APE+0x20 Func2
+  APE 0x0214:
+    Name: APE RX Pool Mode/Status Func2
+  APE 0x0218:
+    Name: Func2 D Ret
+  APE 0x021C:
+    Name: Func2 B free_pt_a
+  APE 0x0220:
+    Name: Series APE+0x8C Func2
+  APE 0x0224:
+    Name: Series APE+0x90 APE TX To Net Buffer Allocator Func2
+  APE 0x0228:
+    Name: Series APE+0x94 Func2
+  APE 0x022C:
+    Name: Series APE+0x98 Func2
+  APE 0x0238:
+    Name: XOFF2 Func2
+  APE 0x0300:
+    Name: Series APE+0x14 Func3
+  APE 0x0304:
+    Name: Series APE+0x1C Func3
+  APE 0x0308:
+    Name: Series APE+0x20 Func3
+  APE 0x0314:
+    Name: APE RX Pool Mode/Status Func3
+  APE 0x0318:
+    Name: D Ret Func3
+  APE 0x031C:
+    Name: B free_pt_a Func3
+  APE 0x0320:
+    Name: Series APE+0x8C Func3
+  APE 0x0324:
+    Name: Series APE+0x90 APE TX To Net Buffer Allocator Func3
+  APE 0x0328:
+    Name: Series APE+0x94 Func3
+  APE 0x032C:
+    Name: Series APE+0x98 Func3
   APE 0x4000:
     Name: Seg Sig
     Notes: APE_APE_MAGIC ('APE!') when all is well.
@@ -1687,11 +2085,25 @@ Resources:
     Name: NCSI Build Date 2
   APE 0x4824:
     Name: NCSI Build Date 3
+  APE 0x482C:
+    Name: Unk2C
+    Notes: Very significant. Lots of control/status bits managed by APE firmware. See header.
+  APE 0x4838:
+    Name: Housekeeping
+    Notes: Contains flags set to indicate APE firmware needs to perform some periodic task. For example, set when certain interrupts happen in the IRQ handler to defer actual handling to main loop. See header.
+  APE 0x483C:
+    Name: BMC/NC SMBus Address
   APE 0x4890:
     Name: Chip ID
     S1: true
     Notes: |
       The APE code copies the contents of REG_CHIP_ID to this word.
+  APE 0x4900:
+    Name: NCSI Channel 0 Info
+    Notes: |
+      These fields are repeated for each NCSI channel (port), 256 bytes
+      per channel (so channel 1 is at 0x4A00, etc.). Info field contains
+      various bitflags, see header.
   APE 0x8400:
     Name: Per Lock Request PHY0
     S1: true
@@ -3355,3 +3767,113 @@ Resources:
 
       Because the MSB of the type byte is set, it must be referenced via an
       extended directory. It has most likely replaced the "iSCSI Cfg Program".
+  AM 0x0000_0000:
+    Name: Invalid
+    End: 0x000F_FFFF
+  AM 0x0010_0000:
+    Name: Code
+    End: 0x0011_7FFF
+    Notes: Stack starts at end of this region.
+  AM 0x0011_8000:
+    Name: Invalid
+    End: 0x1FFF_FFFF
+  AM 0x2000_0000:
+    Name: Reserved for SRAM by Cortex-M3, probably not mapped
+    End: 0x3FFF_FFFF
+  AM 0x4000_0000:
+    Name: Reserved for peripherals by Cortex-M3, probably not mapped
+    End: 0x5FFF_FFFF
+  AM 0x6000_0000:
+    Name: Boot ROM
+    End: 0x6000_072F
+    Notes: |
+      This is where the "External RAM" region of the Cortex-M3 memory map starts.
+  AM 0x6020_0000:
+    Name: APE Registers
+    End: 0x6021_FFFF
+    Notes: |
+      This maps to the APE registers (APE+0). End guessed.
+  AM 0x6022_0000:
+    Name: APE Func0 SHM (APE+0x4000).
+    End: 0x6022_0FFF
+  AM 0x6022_1000:
+    Name: APE Func1 SHM (APE+0x4000).
+    End: 0x6022_1FFF
+  AM 0x6022_2000:
+    Name: APE Func2 SHM (APE+0x4000).
+    End: 0x6022_2FFF
+  AM 0x6022_3000:
+    Name: APE Func3 SHM (APE+0x4000).
+    End: 0x6022_3FFF
+  AM 0x6024_0000:
+    Name: NVM Registers
+    End: 0x6024_0FFF
+    Notes: |
+      Same layout/format as devreg block 0x7000.
+      Data returned is 32-bit word endian swapped.
+      End address is rough.
+  AM 0x6024_1000:
+    Name: APE Peripheral - SMBus 1
+    End: 0x6024_1FFF
+    Notes: End address is rough.
+  AM 0xA000_0000:
+    Name: From Network Frame Buffer Func0
+    End: 0xA000_3FFF
+    Notes: |
+      Ring buffer filled with frames arriving from the network to be directed
+      to the APE/BMC. Indexed by Series APE+0x14's head field multiplied by 128
+      (the block size).
+
+      This is also the start of the "External Device" memory space in the
+      Cortex-M3 memory map.
+  AM 0xA000_4000:
+    Name: From Network Frame Buffer Func1
+    End: 0xA000_7FFF
+  AM 0xA000_8000:
+    Name: From Network Frame Buffer Func2
+    End: 0xA000_BFFF
+  AM 0xA000_C000:
+    Name: From Network Frame Buffer Func3
+    End: 0xA000_FFFF
+  AM 0xA002_0000:
+    Name: To Network Frame Buffer Func0
+    End: 0xA002_1FFF
+    Notes: |
+      APE transmits to network by using Series APE+0x90 to allocate a block
+      within this buffer, writing frame into it (allocating more blocks if
+      frame requires multiple blocks), then writing to the doorbell, see
+      header.
+  AM 0xA002_2000:
+    Name: To Network Frame Buffer Func1
+    End: 0xA002_3FFF
+  AM 0xA002_4000:
+    Name: To Network Frame Buffer Func2
+    End: 0xA002_5FFF
+  AM 0xA002_6000:
+    Name: To Network Frame Buffer Func3
+    End: 0xA002_7FFF
+
+  AM 0xA004_0000:
+    Name: Device Registers Func0
+    End: 0xA004_FFFF
+    Notes: |
+      e.g. 0xA004_362C is `REG_STATUS`.
+  AM 0xA005_0000:
+    Name: Device Registers Func1
+    End: 0xA005_FFFF
+  AM 0xA006_0000:
+    Name: Device Registers Func2
+    End: 0xA006_FFFF
+  AM 0xA007_0000:
+    Name: Device Registers Func3
+    End: 0xA007_FFFF
+  AM 0xA008_0000:
+    Name: Probably H2B/B2H Buffers Func0
+    End: 0xA008_03FF
+    Notes: |
+      Rough end. Needs further investigation.
+  AM 0xE000_0000:
+    Name: Cortex-M3 Internal
+    End: 0xFFFF_FFFF
+    Notes: |
+      Includes NVIC, etc.
