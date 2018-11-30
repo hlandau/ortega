@@ -5,6 +5,7 @@
 #include <stdnoreturn.h>
 #ifdef OTG_HOST
 #  include <stdlib.h>
+#  include <unistd.h>
 #endif
 
 #define OTG_DEBUG
@@ -619,19 +620,37 @@
 #define ROM_START 0x40000000
 #define ROM_END   0x40080000
 
+#ifdef __ppc64__
+#  define MMIO_BARRIER_PRE()  do { asm volatile ("sync 0\neieio\n" ::: "memory"); } while(0)
+#  define MMIO_BARRIER_POST() MMIO_BARRIER_PRE()
+#else
+#  define MMIO_BARRIER_PRE()  do {} while (0)
+#  define MMIO_BARRIER_POST() MMIO_BARRIER_PRE()
+#endif
+
 static inline uint32_t Load32(const void *p) {
-  return *(volatile uint32_t*)p;
+  MMIO_BARRIER_PRE();
+  uint32_t v = *(volatile uint32_t*)p;
+  MMIO_BARRIER_POST();
+  return v;
 }
 
 static inline uint32_t Load32Immutable(const void *p) {
-  return *(uint32_t*)p;
+  MMIO_BARRIER_PRE();
+  uint32_t v = *(uint32_t*)p;
+  MMIO_BARRIER_POST();
+  return v;
 }
 
 static inline void Store32(void *p, uint32_t value) {
+  MMIO_BARRIER_PRE();
   *(volatile uint32_t*)p = value;
+  MMIO_BARRIER_POST();
 }
 static inline void Store16(void *p, uint16_t value) {
+  MMIO_BARRIER_PRE();
   *(volatile uint16_t*)p = value;
+  MMIO_BARRIER_POST();
 }
 
 #ifndef OTG_APE
@@ -780,7 +799,7 @@ static inline uint32_t GetRXWordViaForcedLoad(uint32_t rxAddr) {
   // Don't remove this, it creates a small delay which seems to sometimes be
   // necessary.
   if (GetReg(REG_RX_RISC_PROGRAM_COUNTER) != 0x4000008C)
-    fprintf(stderr, "bad\n");
+    fprintf(stderr, "bad1\n");
 
   // Get the result.
   uint32_t v = GetReg(REG_RX_RISC_REG_T7);
@@ -822,8 +841,9 @@ static inline void SetRXWordViaForcedStore(uint32_t rxAddr, uint32_t value) {
 
   // Don't remove this, it creates a small delay which seems to sometimes be
   // necessary.
-  if (GetReg(REG_RX_RISC_PROGRAM_COUNTER) != 0x4000003C)
-    fprintf(stderr, "bad\n");
+  uint32_t pc = GetReg(REG_RX_RISC_PROGRAM_COUNTER);
+  if (pc != 0x4000003C)
+    fprintf(stderr, "  bad2 0x%08x\n", pc);
 
   // Restore.
   SetReg(REG_RX_RISC_REG_T7, oldT7);
@@ -1149,40 +1169,47 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
                     Controls whether expansion ROM is searched for.
        unobs      bit 2-5:
                     QLMAPI: PXE Speed
+                    0: Autonegotiate, 1: 10M HD, 2: 10M FD, 3: 100M HD, 4: 100M FD, 5: 1000M HD, 6: 1000M FD
                   bit 6:
-                    QLMAPI: Force PCI
+                    QLMAPI: Force PCI mode. If not set, autodetect. Probably legacy.
                     ?
      T(Fun0)      bit 7: ASF Enable
                     QLMAPI: ASF Enable
                     If set, do not init MII at end of stage1 init and do not
                     init MII/EMAC mode in stage2 init.
                   bit 8-11: PXE BAR Size
-                    QLMAPI: PXE BAR Size
+                    QLMAPI: PXE BAR Size. "Expansion ROM size".
                     Involved in expansion ROM init.
+                    0: 64K, 1: 128K, 2: 256K, 3: 512K, 4: 1M, 5: 2M, 6: 4M, 7: 8M, 8: 16M
    pxe            bit 12: Disable Setup Message?
-                    QLMAPI: Disable Setup Message
+                    QLMAPI: Disable Setup Message. Other source indicates "set to 1 to enable PXE setup prompt".
                     "Disable setup prompt for MBA config"
    pxe            bit 13: Alternate Hotkey Option
                     QLMAPI: Hotkey Option
                     Selects hotkey: Ctrl-S or Ctrl-B.
    pxe unobs      bit 14-15:
                     QLMAPI: PXE Bootstrap Type
+                    0: BBS, 1: INT 18h, 2: INT 19h, 3: Disable PXE
    pxe unobs      bit 16-19:
                     QLMAPI: "pxe_timeout_msg"
+                    PXE timeout in seconds during PXE setup prompt.
    pxe unobs      bit 20-21:
                     QLMAPI: PXE Boot Protocol
                     "Only referenced by MBA."
+                    0: PXE, 1: RPL, 2: BOOTP.
                   bit 22: LOM Design?
                     QLMAPI: LOM Design
                     Enables LSB in unknown reg 0x6550.
        unobs      bit 23-24:
                     QLMAPI: Vaux Cutoff Delay
+                    0: 250ms, 1: 150ms, 2: 50ms, 3: 0ms
        unobs      bit 25:
                     QLMAPI: WOL Limit 10
+                    1: WOL speed must be limited to 10M only. Else 100M is allowed for WOL.
      T            bit 26:
                     QLMAPI: Link Idle
                     REG_CPMU_CONTROL__LINK_IDLE_POWER_MODE_ENABLE
-                    Was "driver_wol_enable" long ago?
+                    Was "driver_wol_enable" long ago? For that bits 26-27, 0=WOL Disable, 1=Magic Packet WOL, 2=Interesting Packet WOL, 3=Both.
        unobs      bit 27:
                     BMAPI: Reserved
                     QLMAPI: PXE Boot Protocol 1
@@ -1216,12 +1243,13 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
   /* [1E8]      g_miiInitControlFlags2
                   bit 0-1:
                     QLMAPI: Voltage Source
+                    Long ago: 0: 1.3V. 1: 1.8V.
      T=0b01       bit 2-3:
                     QLMAPI: PHY LED Mode
                     Legacy LED control. If GEN_CFG_HW__SHASTA_EXT_LED__LEGACY,
                     the REG_LED_CONTROL__LED_MODE field is set from this field.
                   bit 4-5:
-                    QLMAPI: PHY Type
+                    QLMAPI: PHY Type. Now disused?
                   bit 6:
                     QLMAPI: Forced Max PCI Retry
                   bit 7-9:
@@ -1231,6 +1259,9 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
                   bit 12:
                     QLMAPI: Reverse N-Way
                     S2: something to do with VMAIN?
+                    "Power saving auto-negotiation mode".
+                    0: N-way negotiation (1000->100->10).
+                    1: Reverse N-way negotiation (10->100->1000).
                   bit 13:
                     QLMAPI: Mini PCI
                     Used by S2.
@@ -1301,7 +1332,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
                   BMAPI: L1ASPM_Debounce_En
                   TG3: NIC_SRAM_ASPM_DEBOUNCE
                 bit 2:
-                  Fiber WoL Capable?
+                  Fiber WoL Capable   ?
                   BMAPI: FiberWoLCapable
                 bit 3:
                   BMAPI: DisablePowerSaving
@@ -1468,13 +1499,14 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 //   external interrupt (0x10).
 //
 //   0x02: Unknown, complex, generates 0xF4, 0xEB
-//   0x08: Unknown, generates log message 0x08
+//   0x08: H2B, generates log message 0x08
+//           N.B. Diag tool refers to this as INT 0x0D, but that's clearly wrong
 //   0x0A: Unknown, generates log messages 0x0A, 0xEB. based on port number?
 //   0x0E: SMBus Bus0
 //   0x10: SMBus Bus1
 //   0x11: RMU Egress
 //   0x14: General Status Change (Occurs when PCIe link status change/a function GRC is reset/"Ds" changes?)
-//   0x18: Vmain/Vaux status change?
+//   0x18: Vmain/Vaux status change
 //   0x19: Link Status Change Ports 0 and 2
 //   0x1A: Link Status Change Ports 1 and 3
 //   0x0B: Port RX Packet Ports 0 and 2
@@ -1611,24 +1643,62 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__EVENT            APE_REG(0x000C)
 #define REG_APE__EVENT__1         0x0000001
 
-// [0x0014]  Series APE+0x14 Unknown - Func0
-//   bit 30: ?
+// [0x0014]  Series APE+0x14 RXBufOffset - Func0
+//   Examined on APE Packet RX interrupt.
+//   Appears to indicate incoming packet. Probably references offset into 0xA000_0000.
+//
+//   bit 30: Packet available to read?
+//   INT 0Bh handler / diag tool logdump appears to indicate this contains
+//   buffer head/tail/count:
+//     bits  0:11: tail
+//     bits 12:23: head
+//     bits 24:25: ?
+//     bits 26:29: count
+//     bit     30: indicates validity/packet is available to read
+//     bit     31: ?
+//
+//   r14x
+//             "larq_dq": "bufCnt", "head", "tail", flags ipFrag, toHost
+//             After receiving from network, if bit 30 is set, bit 31 is ORed in.
+//             Indicates some sort of conclusion...
 
-// [0x0018]  Series APE+0x14 Unknown - Func0
-// Examined on APE Packet RX?
+// [0x0018]  Series APE+0x14 RXBufOffset - Func1
+//   See Func0. Same format.
 
-// [0x001C]  Series APE+1C Unknown - Func0
+// [0x001C]  Series APE+0x1C "TX To Network Doorbell" - Func0
 //   Relates to Func0.
+//   Written on APE TX to network after filling 0xA002 buffer with packet.
+//     bits  0:11: prob tail -- set to offset in 0xA002 buffer to which
+//                   LAST block of outgoing frame has just been written
+//     bits 12:23: prob head -- set to offset in 0xA002 buffer to which
+//                   FIRST block of outgoing frame has just been written
+//     bits 24:31: probably length. in bytes, I think
+//   CONFIRMED via testing, pretty much
 
 // [0x008C]  Series APE+0x8C Unknown - Func0
 // [0x0110]  Series APE+0x8C Unknown - Func1
 // [0x0220]  Series APE+0x8C Unknown - Func2
 // [0x0320]  Series APE+0x8C Unknown - Func3
 
-// [0x0090]  Series APE+0x90 Unknown - Func0
-// [0x0114]  Series APE+0x90 Unknown - Func1
-// [0x0224]  Series APE+0x90 Unknown - Func2
-// [0x0324]  Series APE+0x90 Unknown - Func3
+// [0x0090]  Series APE+0x90 "APE TX To Net Buffer Allocator" - Func0
+// [0x0114]  Series APE+0x90 "APE TX To Net Buffer Allocator" - Func1
+// [0x0224]  Series APE+0x90 "APE TX To Net Buffer Allocator" - Func2
+// [0x0324]  Series APE+0x90 "APE TX To Net Buffer Allocator" - Func3
+//   The low 12 bits of this seem to be an offset into the 0xA002 buffer
+//   which determines where the next packet TX'd to the network is
+//   written by the APE code. The low 10 bits are multiplied by 128
+//   to get the offset.
+//
+//   USAGE:
+//     Write 0x0000_1000 to this register.
+//     Poll the register until bits 13:14 are not 0b01 -- busy wait until allocation complete.
+//     The block number within the 0xA002_0000 buffer is now in bits 0:11.
+//     Blocks are 128 bytes in size, so e.g. if bits 0:11 = 0x024, write to 0xA002_1200.
+//     If a frame is more than one block in size, allocate a block, copy to it, repeat until
+//     frame is done.
+//     Finally finish it all off by writing to the Series APE+1C doorbell with length,
+//     first block no. and final block no.
+//
 
 // [0x0094]  Series APE+0x94 Unknown - Func0
 // [0x0118]  Series APE+0x94 Unknown - Func1
@@ -1667,7 +1737,19 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__STATUS_2__LAN_2_DSTATE     0x0004 /* might be W2C has-changed indicator */
 #define REG_APE__STATUS_2__LAN_3_DSTATE     0x0080 /* might be W2C has-changed indicator */
 
+// [0x0040]  Series APE+0x40 Func0
+//   Written with info when finished writing a frame to the network.
+//   Indicates end of transmission? Weird since actual data written to
+//   0xA008_0400 (for F0).
+// [0x0044]  Series APE+0x44 Func0
+// [0x0048]  Series APE+0x40 Func1
+// [0x004C]  Series APE+0x4C Func1
+
 // [0x0054]  Unknown, bit 0 checked by INT H2B
+//   bit     0: Not Empty
+//   bit     1: Underflow
+//   bit  8:24: Number of ... bytes? words?
+//   bit 25:31:
 
 // [0x006C]  Unknown Mysterious
 // Observed: 0x6022_1000, which is Func1 APE SHM
@@ -1691,27 +1773,30 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 
 // [0x0084]  Port 0-related B - APE RX Pool "free_pt_a" (r89x)
 //             "free_pt_a": "head", "tail", ...
-// [0x0014]  Port 0-related C (r14x)
-//             "larq_dq": "bufCnt", "head", "tail", flags ipFrag, toHost
 // [0x0080]  Port 0-related D - APE RX Pool Ret (r80x)
 //             "arpm_ret", "bufCnt", "head", "tail"
+//             Used to indicate when the APE is done with a region of the 0xA000_0000 RX pool buffer
+//             so that it can be used to receive another frame.
+//             bits  0:11: tail
+//             bits 12:??: head
+//             bits 27:??: count
 //
 // [0x007C]  Port 1 APE RX Pool Mode/Status
 //             See port 0.
 // [0x009C]  Port 1-related B - "free_pt_a"
-// [0x0018]  Port 1-related C - "larq_dq"
+// [0x0018]  Series APE+0x14 RXBufOffset Func1
 // [0x0088]  Port 1-related D - "arpm_ret"
 //
 // [0x0214]  Port 2 APE RX Pool Mode/Status
 //             See port 0.
 // [0x021C]  Port 2-related B
-// [0x0200]  Port 2-related C
+// [0x0200]  Series APE+0x14 RXBufOffset Func2
 // [0x0218]  Port 2-related D
 //
 // [0x0314]  Port 3 APE RX Pool Mode/Status
 //             See port 0.
 // [0x031C]  Port 3-related B
-// [0x0300]  Port 3-related C
+// [0x0300]  Series APE+0x14 RXBufOffset Func3
 // [0x0318]  Port 3-related D
 
 
@@ -1791,6 +1876,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 //   Relates to Func1.
 
 // [0x0200]  Series APE+0x14 Unknown - Func2
+//   See Series APE+0x14 Func0. Same format.
 
 // [0x0204]  Series APE+1C Unknown - Func2
 //   Relates to Func2.
@@ -1896,11 +1982,6 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // unknown: 0x4030, touched by APE exception handler
 //   Seems to be set to an argument to the exception handler - exception SP?
 #define REG_APE__EXCEPTION_SP       APE_REG(0x4030)
-
-// [0x4040]  Series APE+0x4040 Func0
-// [0x4044]  Series APE+0x4044 Func0
-// [0x4048]  Series APE+0x4040 Func1
-// [0x404C]  Series APE+0x404C Func1
 
 // 0x4074: 0x4154 is set to this on an an exception. "Exception Flags". ?
 
@@ -2223,7 +2304,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // These fields concern the NCSI "package".
 // This field has the "ID" in bits 5-31. Bits 0-4 unknown.
 #define REG_APE__NCSI_PACKAGE_ID   APE_REG(0x4804)
-#define REG_APE__NCSI_UNK08        APE_REG(0x4808) /* 'rset'. ? I think the LSB is the reset count. */
+#define REG_APE__NCSI_UNK08        APE_REG(0x4808) /* 'rset'. LSbyte  to 1 while resetting? */
 #define REG_APE__NCSI_PORT_COUNT   APE_REG(0x480C) /* 5719: 4 */
 
 // These are ASCII strings which occupy a few registers starting here.
@@ -2240,21 +2321,32 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 
 #define REG_APE__NCSI_UNK2C     APE_REG(0x482C)
 // Disable flow control?
-#define REG_APE__NCSI_UNK2C__FCDIS    (1U<<0) /* set */
+#define REG_APE__NCSI_UNK2C__FCDIS        (1U<<0) /* set */
 // Hardware arbitration?
-#define REG_APE__NCSI_UNK2C__HWARB    (1U<<1) /* set */
-#define REG_APE__NCSI_UNK2C__DESELECT (1U<<2) /* unset */
-#define REG_APE__NCSI_UNK2C__SELECTED (1U<<3) /* set */
-#define REG_APE__NCSI_UNK2C__READY    (1U<<4) /* set */
+#define REG_APE__NCSI_UNK2C__HWARB        (1U<<1) /* set */
+#define REG_APE__NCSI_UNK2C__DESELECT     (1U<<2) /* unset */
+#define REG_APE__NCSI_UNK2C__SELECTED     (1U<<3) /* set */
+#define REG_APE__NCSI_UNK2C__READY        (1U<<4) /* set */
+  /* bit 5 */
 #define REG_APE__NCSI_UNK2C__1G_HALF_ADV  (1U<<6)
-#define REG_APE__NCSI_UNK2C__CTRL_SEEN  (1U<<9)
-#define REG_APE__NCSI_UNK2C__USE_SMBUS  (1U<<10) /* set */
+  /* bit 7  - set on boot */
+  /* bit 8  - masked on boot if SMBus, else enabled on boot if HP */
+#define REG_APE__NCSI_UNK2C__CTRL_SEEN    (1U<<9)
+#define REG_APE__NCSI_UNK2C__USE_SMBUS    (1U<<10) /* set */
 #define REG_APE__NCSI_UNK2C__SMBUS_400KHZ (1U<<11) /* set: 400kHz, unset: 100kHz */
 #define REG_APE__NCSI_UNK2C__B2H          (1U<<12) /* guessed */
+  /* bit 13  - set on boot if at least one of SMBus BMC addr or NC addr configured */
+  /* bit 14:15 */
 #define REG_APE__NCSI_UNK2C__NO_LINK_FLAP (1U<<16) /* unset */
-#define REG_APE__NCSI_UNK2C__AUX_1G     (1U<<17) /* unset */
+#define REG_APE__NCSI_UNK2C__AUX_1G       (1U<<17) /* unset */
 /* bit 15: unknown - may be related to temperature monitoring */
-/* bit 22-23: unknown */
+/* bit 16: not seen */
+/* bit 17: not seen */
+/* bit 18: not seen */
+/* bit 19: unknown */
+/* bit 20: unknown */
+/* bit 21: unknown (Huawei related) */
+/* bit 22-23: unknown (Huawei related) */
 
 // Bit 30 is set if DriverBusy occurs (APE Lockport 6 lock request timeout)
 // Bit 31 is set if APE Lockport MEM request times out
@@ -2273,19 +2365,27 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // This is an index into that ring buffer, modulo 64.
 #define REG_APE__NCSI_DBGLOG_INDEX            APE_REG(0x4834)
 
-// Bits 0x10, 0x30 and 0xF0 of this can be set by the INT 0x18 Voltage Source
-// Change interrupt handler in some circumstances.
-// Bits 0-3 of this may correspond to ports (1<<0 == port 0-related bit, etc.)
-//
-// Bit 0x1000 related to H2B, set by H2B interrupt
-// Bit 0x2000 set by RMUEgress interrupt
-// Bit 0x4000 causes a search for an APE_CODE image in main loop?
-// Used for FW update?
-//
-// Bit 20: Unknown flag A for port 0 ] Set on entry to main loop.
-// Bit 21: Unknown flag A for port 1 ]
-// Bit 22: Unknown flag A for port 2 ]
-// Bit 23: Unknown flag A for port 3 ]
+// bit 00:03: 0x0_000x  These bits correspond to ports. Link Status Change
+// bit 04:07: 0x0_00x0  Set by Voltage Source Change interrupt (EXT 18H).
+// bit    08: 0x0_0100  Set by RXEvenPorts interrupt (EXT 0BH)
+// bit    09: 0x0_0200  Set by RXOddPorts interrupt (EXT 1BH)
+// bit    10: 0x0_0400  Set by RXEvenPorts interrupt (EXT 0BH)
+// bit    11: 0x0_0800  Set by RXOddPorts interrupt (EXT 1BH)
+// bit    12: 0x0_1000  Set by H2B interrupt (EXT 08H)
+// bit    13: 0x0_2000  Set by RMUEgress interrupt (EXT 11H)
+// bit    14: 0x0_4000  Set by GenStatusChange interrupt - on PCIe reset (EXT 14H)
+//                        Causes a search for an APE_CODE image in main loop
+//                        Used for FW update?
+// bit    15: 0x0_8000  Set by GenStatusChange interrupt - unknown cond (EXT 14H)
+// bit    16: 0x1_0000  UNKNOWN - Set by sub_110F22, handled in main loop
+//                        Appears to be called only by AInitSmbusOuter
+//                        "SMBus needs init"?
+// bit    17: 0x2_0000  UNKNOWN
+// bit    18: 0x4_0000  Set by Link Status Change Even Ports (EXT 19H)
+// bit    19: 0x8_0000  Set by Link Status Change Odd Ports (EXT 1AH)
+// bit 20:23:           Unknown flag, one for each port. Set on entry to main loop
+// bit 24:27:           UNKNOWN
+// bit 28:31:           [NOT SEEN]
 #define REG_APE__NCSI_HOUSEKEEPING     APE_REG(0x4838)
 
 // Bits 0-7 of this are the "BMC address", probably the SMBus address.
@@ -2297,6 +2397,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // [0x4840] Unknown
 // Touched on APE packet RX?
 // Controls debug logging in one init function. ???
+// Initialised to 0x100 on boot.
 
 // [0x4844] Unknown
 // Touched during APE init, might be some obsolete thing from NVM
@@ -2316,7 +2417,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // [NCSIPORT+0x00] Unknown. Calling this "Info".
 //   bit  0: Enabled
 //     This can be modified via NCSI SELECT PACKAGE and NCSI DESELECT PACKAGE
-//   bit  1: "txpt"
+//   bit  1: "txpt"  -- TX passthrough has been enabled by BMC NCSI command
 //   bit  2: "ready"    ] These are ORed into this word by the APE
 //   bit  3: "init"     ] for all ports at startup.
 //   bit  4: "mfilt"
@@ -2324,7 +2425,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 //   bit  6: "serdes"
 //   bit  7: ?
 //   bit  8: "vlan"
-//   bit  9: ?                                                    <-\
+//   bit  9: ?        set on NCSI RESET CHANNEL                   <-\
 //   bit 10: "B2H"                                                  |
 //   bit 11: "B2N"                                                  |
 //   bit 12: "EEE"                                                  |
@@ -2332,9 +2433,12 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 //   bit 14: "driver"                                               |
 //   bit 15: if set, "pDead"                                        |
 //   bit 16: ?                                                      |
-//   bit 17: ?  [could be 'needs reset']                          <-/
+//   bit 17: ?  [could be 'needs reset'] clred by NCSI RESET CHAN <-/
 //   bit 18:
 //   bit 19: ?  [determines if NCSI sometimes]
+//   bit 20:
+//   bit 21:
+//   bit 22: ?    ARPMresetted?
 #define REG_APE__NCSI_CHANNELN_INFO(Ch)         NCSI_CH_REG(Ch, 0x00)
 #define REG_APE__NCSI_CHANNELN_INFO__ENABLED    (1U<< 0)
 #define REG_APE__NCSI_CHANNELN_INFO__TXPT       (1U<< 1)
@@ -2353,10 +2457,14 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__NCSI_CHANNELN_INFO__DRIVER     (1U<<14)
 #define REG_APE__NCSI_CHANNELN_INFO__PDEAD      (1U<<15)
 
-// [NCSIPORT+0x04] "McId", otherwise unknown.
+// [NCSIPORT+0x04] "McId". AEN Management Controller ID, set by
+// BMC when sending AEN ENABLE command and used when sending AENs.
 #define REG_APE__NCSI_CHANNELN_MCID(Ch)         NCSI_CH_REG(Ch, 0x04)
 // [NCSIPORT+0x08] "aen"
 //   Set via NCSI ENABLE AEN.
+//   bit 0: Enable Link Status Change AEN
+//   bit 1: Enable Configuration Required AEN
+//   bit 2: Enable Host NC Driver Status Change AEN
 #define REG_APE__NCSI_CHANNELN_AEN(Ch)          NCSI_CH_REG(Ch, 0x08)
 // [NCSIPORT+0x0C] "bfilt"
 //   Set via NCSI ENABLE AEN.
@@ -2389,6 +2497,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 //   bit 10: Pause capability enable
 //   bit 11: Asymmetric pause capability enable
 //   bit 12: OEM link settings field valid
+//   bit 13: ?
 #define REG_APE__NCSI_CHANNELN_SETTING_1(Ch)    NCSI_CH_REG(Ch, 0x14)
 // [NCSIPORT+0x18] "Setting" (second word)
 //   This is the "OEM Settings" value from NCSI Set Link.
@@ -2422,8 +2531,8 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // Each entry:
 //   4  ui  
 //   4  ui  MAC High
+//   4  ui  MAC Mid
 //   4  ui  MAC Low
-//   4  ui
 // Looks like an index of the number of RMU block MAC slots which have
 // been filled for a given port.
 
@@ -2461,8 +2570,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__NCSI_CHANNELN_MAC1_VLAN(Ch)        NCSI_CH_REG(Ch, 0x7C)
 
 // [NCSIPORT+0x80] "Status"
-//   bit    0: ignored?
-//     Set to 1 in some cases. Possibly "link up" flag?
+//   bit    0: Link up
 //   bits 1-4:
 //     0: "link_down"
 //     1: "10hd"
@@ -2475,18 +2583,23 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 //     8: "10g"
 //  bit 5: Set from MII_REG_CONTROL__AUTO_NEGOTIATION_ENABLE. Set unconditionally in SERDES case.
 //  bit 6: Set if autonegotiation is complete.
-//  bit 10: Link partner 1000BASE-T half duplex capable?
-//  bit 11: Link partner 1000BASE-T full duplex capable?
-//  bit 13: Link partner 100BASE-TX half duplex capable?
-//  bit 14: Link partner 10BASE-T full duplex capable?
-//  bit 15: Link partner 10BASE-T half duplex capable?
-//  bit 16: Set if TX is paused?
-//  bit 17: Set if RX is paused?
-//  bit 18: Pause capable?
-//  bit 19: Link partner asymmetric pause?
-//  bit 20: SERDES?
+//  bit 7: NCSI standard says "parallel detection". Not used.
+//  bit 8: NCSI standard says reserved.
+//  bit 9: Link partner 1000BASE-T full duplex capable.
+//  bit 10: Link partner 1000BASE-T half duplex capable
+//  bit 11: Link partner 100BASE-T4 capable.
+//  bit 12: Link partner 100BASE-TX full duplex capable
+//  bit 13: Link partner 100BASE-TX half duplex capable
+//  bit 14: Link partner 10BASE-T full duplex capable
+//  bit 15: Link partner 10BASE-T half duplex capable
+//  bit 16: Set if TX is paused
+//  bit 17: Set if RX is paused
+//  bit 18: Link partner symmetric pause capable
+//  bit 19: Link partner asymmetric pause capable
+//  bit 20: SERDES
+//  bit 21: OEM Link Speed settings valid
 #define REG_APE__NCSI_CHANNELN_STATUS(Ch)       NCSI_CH_REG(Ch, 0x80)
-#define REG_APE__NCSI_CHANNELN_STATUS__UP       0x000001 /* very tentative guess */
+#define REG_APE__NCSI_CHANNELN_STATUS__UP       0x000001
 #define REG_APE__NCSI_CHANNELN_STATUS__SERDES   0x100000 /* guessed */
 #define REG_APE__NCSI_CHANNELN_STATUS__MODE__LINK_DOWN    (0<<1)
 #define REG_APE__NCSI_CHANNELN_STATUS__MODE__10HD         (1<<1)
@@ -2499,8 +2612,8 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__NCSI_CHANNELN_STATUS__MODE__10G          (8<<1)
 #define REG_APE__NCSI_CHANNELN_STATUS__RX_PAUSED          0x20000 /* guessed */
 #define REG_APE__NCSI_CHANNELN_STATUS__TX_PAUSED          0x10000 /* guessed */
-#define REG_APE__NCSI_CHANNELN_STATUS__AUTONEG_ENABLE     0x20 /* guessed */
-#define REG_APE__NCSI_CHANNELN_STATUS__AUTONEG_COMPLETE   0x40 /* guessed */
+#define REG_APE__NCSI_CHANNELN_STATUS__AUTONEG_ENABLE     0x20
+#define REG_APE__NCSI_CHANNELN_STATUS__AUTONEG_COMPLETE   0x40
 
 // [NCSIPORT+0x84] "rsetCnt"
 #define REG_APE__NCSI_CHANNELN_RESET_COUNT(Ch)  NCSI_CH_REG(Ch, 0x84)
@@ -2523,6 +2636,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // [NCSIPORT+0xA4] Unknown
 //   Copied from APE+0x00AC. Time of last init?
 // [NCSIPORT+0xA8] Unknown
+//   Copied from Setting 1 with some bits masked off.
 
 // --- control statistics ---
 // [NCSIPORT+0xB0] "ctrlStat": "rx"
@@ -2567,15 +2681,17 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__NCSI_CHANNELN_INGRSTAT_RUNT(Ch)    NCSI_CH_REG(Ch, 0xF0)
 // [NCSIPORT+0xF4] "ingrStat": "chStErr"
 #define REG_APE__NCSI_CHANNELN_INGRSTAT_CHST_ERR(Ch)    NCSI_CH_REG(Ch, 0xF4)
-// [NCSIPORT+0xF8] ???
+// [NCSIPORT+0xF8] ??? possibly relayed to dropfil, it is set to this|0x4000
 
 // APE 0x4A00-0x4AFF: NCSI Channel 1 stuff, same as the above block
 // APE 0x4B00-0x4BFF: NCSI Channel 2 stuff, same as the above block
 // APE 0x4C00-0x4CFF: NCSI Channel 3 stuff, same as the above block
 
-// [0x4D00]
+// [0x4D00] Set to 0x1234567
 // [0x4D04] Unknown, incremented in APE init
-// [0x4D10] Set to &g_short113154?
+// [0x4D10] Set to &g_short113154? (&g_ringData)
+// [0x4D14] ?
+// [0x4D18] Set to g_toBmcState
 
 // 0x4D3C end?
 
@@ -2844,7 +2960,6 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__BMC_NC_RX_STATUS     APE_REG(0x8300)
 #define REG_APE__BMC_NC_RX_STATUS__PACKET_LEN__MASK 0x07FF0000
 // This seems to indicate the SA_HIT field is valid. ?
-#define REG_APE__BMC_NC_RX_STATUS__SA_HIT_VALID     0x00000008
 #define REG_APE__BMC_NC_RX_STATUS__SA_HIT__MASK     0x00003C00
 #define REG_APE__BMC_NC_RX_STATUS__FLUSH_DONE       0x00000200
 #define REG_APE__BMC_NC_RX_STATUS__FLUSHING         0x00000100
@@ -2852,11 +2967,13 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__BMC_NC_RX_STATUS__EOF              0x00000040
 #define REG_APE__BMC_NC_RX_STATUS__UNDERRUN         0x00000020
 #define REG_APE__BMC_NC_RX_STATUS__VLAN             0x00000010
-#define REG_APE__BMC_NC_RX_STATUS__PASSTHRU         0x00000004
+#define REG_APE__BMC_NC_RX_STATUS__SA_HIT_VALID     0x00000008
+#define REG_APE__BMC_NC_RX_STATUS__PASSTHRU         0x00000004 /* else cmd */
 #define REG_APE__BMC_NC_RX_STATUS__BAD              0x00000002
 #define REG_APE__BMC_NC_RX_STATUS__NEW              0x00000001
 
 // [APEPER+0x304] BMC->NC RX Source MAC High
+//   bit 24 means something, disable?
 #define REG_APE__BMC_NC_RX_SRC_MAC_HIGH   APE_REG(0x8304)
 // [APEPER+0x308] BMC->NC RX Source MAC Low
 #define REG_APE__BMC_NC_RX_SRC_MAC_LOW    APE_REG(0x8308)
@@ -2868,6 +2985,12 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // End: [APEPER+0x354]
 #define REG_APE__BMC_NC_RX_SRC_MAC_MATCHN_HIGH(Num) APE_REG(0x830C+8*(Num)+0)
 #define REG_APE__BMC_NC_RX_SRC_MAC_MATCHN_LOW(Num)  APE_REG(0x830C+8*(Num)+4)
+
+// [APEPER+0x34C] BMC->NC RX VLAN
+//   bits 16-31: VLAN ID probably
+#define REG_APE__BMC_NC_RX_VLAN       APE_REG(0x834C)
+#define REG_APE__BMC_NC_RX_VLAN__VLAN__MASK   0xFFFF0000
+#define REG_APE__BMC_NC_RX_VLAN__VLAN__SHIFT  16
 
 // [APEPER+0x350] BMC->NC
 //   Probably for reading from buffer. Read this register repeatedly.
@@ -2893,12 +3016,6 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__BMC_NC_RX_STATUS_2__TRUNCATED__MASK   0x00FF0000
 #define REG_APE__BMC_NC_RX_STATUS_2__DROP__MASK        0x0000FF00
 #define REG_APE__BMC_NC_RX_STATUS_2__BAD__MASK         0x000000FF
-
-// [APEPER+0x34C] BMC->NC RX VLAN
-//   bits 16-31: VLAN ID probably
-#define REG_APE__BMC_NC_RX_VLAN       APE_REG(0x834C)
-#define REG_APE__BMC_NC_RX_VLAN__VLAN__MASK   0xFFFF0000
-#define REG_APE__BMC_NC_RX_VLAN__VLAN__SHIFT  16
 
 // [APEPER+0x370] NC->BMC TX Status
 #define REG_APE__NC_BMC_TX_STATUS     APE_REG(0x8370)
@@ -2926,7 +3043,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // unknown: 0x378
 //   lots of words are written to this at once?
 //   It seems like you write a packet to the RMU by writing the words to this
-//   in sequence. Is this to the BMC or to the network?
+//   in sequence. Appears to be to the BMC.
 //
 // unknown: 0x37C
 //   This seems to be masked by LAST_BYTE_COUNT__MASK to allow a frame to have
@@ -2952,6 +3069,10 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 
 // [APEPER+0x3A4] Arb Control
 // Most of these are "arb" bits.
+// To enable, set DISABLE=0, AUTO_BY=0, BYPASS=0, START=1, PACKAGE_ID=...
+//   (CHANNELN_INFO__HWARB set)
+// To disable, set DISABLE=0, AUTO_BY=1, BYPASS=0, START=0 (?)
+//   (CHANNELN_INFo__HWARB cleared)
 #define REG_APE__ARB_CONTROL          APE_REG(0x83A4)
 #define REG_APE__ARB_CONTROL__PACKAGE_ID__MASK  0x00000007
 #define REG_APE__ARB_CONTROL__TO__MASK          0xFFFF0000
@@ -2963,6 +3084,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__ARB_CONTROL__DISABLE   0x00000008
 
 // [APEPER+0x3B0] ???
+// [APEPER+0x3B4] ???
 
 // === APE Peripheral Block 0x400 - Locks ==============================
 // tg3 suggests the lock ports below are allocated as follows:
@@ -3270,13 +3392,15 @@ typedef struct __attribute__((packed)) {
   uint16_t pciSubsystemVendor;  //1  [ A6] 0x14E4 Broadcom
 
   uint16_t cpuClock;            //   [ A8] 00 42          ] In MHz. 66 MHz. Legacy from PCI?
+                                //           Used to be 2 bytes but seems to be two fields
+                                //           now, one of which appears to be SMBus-related.
   uint8_t  ncSMBUSAddr;         //   [ AA] 0              ] Network Controller SMBus Address
                                 //                        ] (Talos: 0, Expansion card: 0x64)
   uint8_t  bmcSMBUSAddr;        //   [ AB] 0              ] BMC SMBus Address (only 0 observed)
-  uint32_t backupMAC0[2];       //   [ AC] 0
-  uint32_t backupMAC1[2];       //   [ B4] 0
-  uint8_t  powerDissipated[4];  //1  [ BC] 0A 00 00 64. => Reg 0x6414
-  uint8_t  powerConsumed[4];    //1  [ C0] 0A 00 00 64. => Reg 0x6410
+  uint32_t backupMAC0[2];       //   [ AC] 0            ] Backup MACs. Apparently was "software keys"
+  uint32_t backupMAC1[2];       //   [ B4] 0            ] in the past for feature enable.
+  uint8_t  powerDissipated[4];  //1  [ BC] 0A 00 00 64. => Reg 0x6414. Entry 0: Power dissipated in D3, 1: D2, 2: D1, 3: D0.
+  uint8_t  powerConsumed[4];    //1  [ C0] 0A 00 00 64. => Reg 0x6410. Entry 0: Power dissipated in D3, 1: D2, 2: D1, 3: D0.
   uint32_t func0CfgFeature;     //1  [ C4] C5 C0 00 80 - Function 0 GEN_CFG_FEATURE.  FEATURE CONFIG
   uint32_t func0CfgHW;          //1  [ C8] 00 00 40 14 - Function 0 GEN_CFG_HW.       HW CONFIG
 

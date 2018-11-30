@@ -22,6 +22,7 @@ SECTIONS {
     *(.reginfo)
     *(.mdebug.abi32)
     *(.pdr)
+    *(.ARM.exidx*)
   }
 
   ASSERT(ADDR(.text)        == (0x00100000), "textstart")

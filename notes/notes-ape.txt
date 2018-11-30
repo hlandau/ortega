@@ -39,6 +39,10 @@ APE Memory Map
   --External Device-------------------A000_0000
     0xA000_0000 \  Unknown thing A (port 0).
     0xA000_3FFF /
+                     Provides access to some sort of from-network buffer.
+                     This buffer is indexed by Series APE+0x14's head field
+                     multiplied by 128.
+
     0xA000_4000 \  Unknown thing A (port 1).
     0xA000_7FFF /
     0xA000_8000 \  Unknown thing A (port 2).
@@ -46,8 +50,32 @@ APE Memory Map
     0xA000_C000 \  Unknown thing A (port 3).
     0xA000_FFFF /
 
-    0xA002_0000 \  Unknown thing B (port 0).
+    0xA002_0000 \  Unknown thing B, transmits to network (port 0).
     0xA002_1FFF /
+                    0xA002_0000 (dw0)
+                      bit  0: 6:  unknown, block length?
+                      bit  7:12:  receives offset of outgoing packet relative to 0xA002_0000
+                      bit 23:31:  set to length of data just written
+                      XXX, the above can be written anywhere in 0xA002, not a register,
+                      just some sort of header
+                    0xA002_0004 (dw1)
+                    0xA002_0008 (dw2)   <-- non-first block of a frame copied
+                    0xA002_000C (dw3)       to buffer starting here   <-- low16 receives some sort of frame len
+                    0xA002_0010 (dw4)
+                    0xA002_0014 (dw5)
+                    0xA002_0018 (dw6)
+                    0xA002_001C (dw7)
+                    0xA002_0020 (dw8)
+                    0xA002_0024 (dw9)   <-- low16 receives some sort of frame len, num blocks?
+                    0xA002_0028 (dw10)
+                    0xA002_002C (dw11)
+                    0xA002_0030 (dw12)  <-- first block of a frame copied
+                                            to buffer starting here
+                      Size of this buffer appears to be ~508 bytes (copy block size up to 508 bytes).
+
+                    Memory probing has determined the size of this region to be 0x8000.
+                    But it might be subdivided equally between the four ports?
+
     0xA002_2000 \  Unknown thing B (port 1).
     0xA002_3FFF /
     0xA002_4000 \  Unknown thing B (port 2).
@@ -64,10 +92,39 @@ APE Memory Map
     0xA007_0000 \  Device Registers (function 3).
     0xA007_FFFF /
 
-    0xA008_0000    ???
+    0xA008_0000    Probably H2B/B2H
     0xA008_0400    ??? - Func0
+
+
+      The below info is old/inaccurate:
+         +0x00  ]  When passing from ...H2B?->net, every word read from the host gets copied into here
+         +0x04  ]  by writing word 0 of the frame to +0x04, word 1 to +0x00,
+                   word 2 to +0x04, word 3 to +0x00, etc. To write remaining number
+                   of bytes of 4 or less, write to +0x04 and then 0 to +0x00. Then
+                   a write to series APE+0x44 with some info including length. But
+                   this doesn't seem to be how the packet is written to the network
+                   - the packet is copied into memory at the same time and then
+                   memcpy'd into a dynamically chosen subregion of A002 in some
+                   cases, in other cases memcpy'd there directly from the BMC port.
+                   Then some sort of control value is written to A002_0000.
+
+                   Sequence:
+                     Read packet into memory from RMU,
+                      copying it into A008_0400/+04 at the same time
+                      series APE+0x44 also receives something incl. length
+                     Write control value to A002_0000
+                     Write to a subregion of A002_xxxx chosen dynamically
+                     Write control value to A002_0000
+                     Series APE+1C receives some value
+
+                   RX FROM NETWORK
+                   ---------------
+                   Reads from 0xA008_0400 (+0x00,+0x04) also seem to be used to
+                   receive from the network.
+
     0xA008_0800    ??? - Func1
-      These don't seem to exist for Func2/3.
+    0xA008_0C00    ??? - Func2
+    0xA008_1000    ??? - Func3
 
     (TODO)
   --PPB Internal----------------------E000_0000

@@ -425,7 +425,8 @@ static int _UsageGet(int pargc, int argc, char **argv) {
     "  Prefix 's' to access the APE event scratchpad.\n"
     "  Prefix 'o' to access APE OTP.\n"
     "  Prefix 'i' for experimental APE thingy.\n"
-    "  For binary output, use the \"dump\" command instead of \"get\"."
+    "  Prefix 'h' to use APE shell. APE shell (apedbg) must be running.\n"
+    "  For binary output, use the \"dump\" command instead of \"get\".\n"
     );
   return -2;
 }
@@ -1284,6 +1285,13 @@ static int _CmdBootAPE(int pargc, int argc, char **argv) {
 
   // Make it easy to tell if boot succeeded.
   SetReg(REG_APE__SEG_SIG, 0x1122BABA);
+  SetReg(REG_APE__APEDBG_CMD, REG_APE__APEDBG_CMD__MAGIC|REG_APE__APEDBG_CMD__TYPE__RETURN);
+  SetReg(REG_APE__APEDBG_STATE, 0x00222200);
+  SetReg(REG_APE__APEDBG_CMD,   0);
+  SetReg(REG_APE__APEDBG_ARG0,  0);
+  SetReg(REG_APE__APEDBG_ARG1,  0);
+  SetReg(REG_APE__APEDBG_CMD_ERROR_FLAGS,  0);
+  SetReg(REG_APE__APEDBG_EXCEPTION_COUNT,  0);
 
   uint32_t *words = virt;
   size_t numWords = st.st_size/4;
@@ -1343,23 +1351,44 @@ static int _CmdBootAPEShell(int pargc, int argc, char **argv) {
     return -1;
   }
 
+  fprintf(stderr, "setting apedbg cmd 1\n");
   SetReg(REG_APE__APEDBG_CMD, REG_APE__APEDBG_CMD__MAGIC|REG_APE__APEDBG_CMD__TYPE__RETURN);
 
   uint32_t scratchpadBase  = 0x00100000;
-  uint32_t injectionVector = 0x001033B2;
 
-  uint32_t word = GetAPEEventScratchpadWord(injectionVector - scratchpadBase);
-  if (word != 0x2000B5F0) { // push {r4-r7,lr}; movs r0, #0
-    fprintf(stderr, "error: code does not seem to match, got 0x%08X\n", word);
-    return -1;
+  struct { uint32_t injectionVector, expectedCode; } knownVectors[] = {
+    { 0x1033B2, 0x2000B5F0, }, // push {r4-r7,lr}; movs r0, #0
+    { 0x1033E8, 0x41F0E92D, }, // push.w {r4-r8,lr}
+    {},
+  };
+
+  uint32_t injectionVector;
+  for (size_t i=0;; ++i) {
+    injectionVector = knownVectors[i].injectionVector;
+    if (!injectionVector) {
+      fprintf(stderr, "error: cannot find any known injection vector\n");
+      return -1;
+    }
+
+    uint32_t word = GetAPEEventScratchpadWord(injectionVector - scratchpadBase);
+    if (word == knownVectors[i].expectedCode)
+      break;
   }
 
+  fprintf(stderr, "setting apedbg state\n");
   SetReg(REG_APE__APEDBG_STATE, 0x00222200);
+  fprintf(stderr, "setting apedbg cmd\n");
   SetReg(REG_APE__APEDBG_CMD,   0);
+  fprintf(stderr, "setting apedbg arg0\n");
   SetReg(REG_APE__APEDBG_ARG0,  0);
+  fprintf(stderr, "setting apedbg arg1\n");
   SetReg(REG_APE__APEDBG_ARG1,  0);
+  fprintf(stderr, "setting apedbg error flags\n");
   SetReg(REG_APE__APEDBG_CMD_ERROR_FLAGS,  0);
+  fprintf(stderr, "setting apedbg exception count\n");
   SetReg(REG_APE__APEDBG_EXCEPTION_COUNT,  0);
+
+  fprintf(stderr, "writing apedbg shellcode\n");
 
   // Write shellcode to some area we don't care about.
   uint32_t *words = virt;
@@ -1368,6 +1397,8 @@ static int _CmdBootAPEShell(int pargc, int argc, char **argv) {
   for (size_t i=0; i<numWords; ++i)
     SetAPEEventScratchpadWord(imageBase + i*4 - scratchpadBase, words[i]);
 
+  // 0x6022_0260  APEDBG_STATE
+  //
   // Patch function. We use the following sequence of instructions:
   //   push {r4,lr}         10 B5  (0xB510)
   //   ldr  r4, _addr       01 4C  (0x4C01)
@@ -1381,11 +1412,20 @@ static int _CmdBootAPEShell(int pargc, int argc, char **argv) {
 
     //0xB5104C01, // push {r4,lr}; ldr r4, _addr
     //0x47A0BD10, // blx r4; pop {r4, pc}
+    
+#ifdef __ppc64__
+    // This is what we must use on ppc64le:
+    imageBase|1,
+#else
+    // This is what we must use on x86:
     (imageBase|1)<<16,
     (imageBase|1)>>16,
+#endif
+    // I do not understand why this is.
   };
 
-  for (size_t i=0; i<4; ++i)
+  fprintf(stderr, "patching function\n");
+  for (size_t i=0; i<ARRAYLEN(patch); ++i)
     SetAPEEventScratchpadWord(injectionVector - scratchpadBase + i*4, htole32(patch[i]));
 
 #if 0
@@ -1396,6 +1436,7 @@ static int _CmdBootAPEShell(int pargc, int argc, char **argv) {
   fwrite(buf, 4, 100, stdout);
 #endif
 
+  fprintf(stderr, "sending ape event\n");
   if (LockAPEEvent()) {
     fprintf(stderr, "error: timeout when trying to lock APE event system\n");
     return -1;
@@ -1419,6 +1460,7 @@ static int _CmdBootAPEShell(int pargc, int argc, char **argv) {
     return -1;
   }
 
+  fprintf(stderr, "done\n");
   return 0;
 }
 
@@ -1619,7 +1661,7 @@ static int _CmdAPELog(int pargc, int argc, char **argv) {
       buf[1] = type;
     }
 
-    printf("%2u)  [%9u r%01X] type=0x%02X (%s)  arg=0x  %02X_%04X",
+    printf("%2zu)  [%9u r%01X] type=0x%02X (%s)  arg=0x  %02X_%04X",
       (idx+1 + i) % APE_DBGLOG_NUM_ENTRIES,
       ts & 0x0FFFFFFF, ts>>28,
       typeArg & 0xFF, buf,
@@ -2075,7 +2117,7 @@ int _CmdAPEReset(int pargc, int argc, char **argv) {
   for (size_t port=0; port<8; ++port) {
     uint32_t state = GetReg(REG_APE__PER_LOCK_GRANT + port*4);
     if (state) {
-      fprintf(stderr, "warning: lockport %u has bits 0x%08X, clearing\n", port, state);
+      fprintf(stderr, "warning: lockport %zu has bits 0x%08X, clearing\n", port, state);
       SetReg(REG_APE__PER_LOCK_GRANT + port*4, state);
     }
   }
