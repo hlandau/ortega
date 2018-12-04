@@ -1,5 +1,5 @@
 OUTPUT_FORMAT(binary)
-ENTRY(APEEntrypoint)
+ENTRY(AEntrypoint)
 
 SECTIONS {
   . = 0x00100C00 - 0x78;
@@ -88,6 +88,6 @@ SECTIONS {
   _DataOffsetFlags        = _DataOffset        | (1 << 25); /* CRC32 */
   _BSSOffsetFlags         = _BSSOffset         | (1 << 28); /* ZERO_ON_FAST_BOOT */
 
-  _APEEntrypointM         = APEEntrypoint & 0xFFFFFFFE;
-  ASSERT(_APEEntrypointM == (0x001080C0), "entrypoint")
+  _AEntrypointM         = AEntrypoint & 0xFFFFFFFE;
+  ASSERT(_AEntrypointM == (0x001080C0), "entrypoint")
 }

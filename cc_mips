@@ -139,13 +139,15 @@ shift
 shift
 
 ## Ensure that we get unwrapped clang on NixOS.
-CLANGVER=$(clang --version|head -n 1|sed 's/^.*version \([0-9]*\.[0-9]\).*$/\1/')
-CLANG=clang
-which "clang-$CLANGVER" >/dev/null 2>/dev/null && CLANG="clang-$CLANGVER"
+[ -z "$CLANG" ] && {
+  CLANG="$(realpath $(which clang))"
+  q="$(dirname $(dirname "$CLANG"))/nix-support/orig-cc"
+  [ -e "$q" ] && CLANG="$(cat $q)/bin/clang"
+}
 
 ## Compile.
 "$CLANG" -cc1 \
-  -triple mips-unknown-none -target-cpu mips2 \
+  -triple mips-unknown-none -target-cpu mips2 -nostdsysteminc \
   -disable-llvm-passes -emit-llvm \
   -Oz "$@" \
   -o "${OUT}.ll-unopt" "$IN"

@@ -9,13 +9,17 @@ USE_PROPRIETARY_APE ?=
 ifneq ($(USE_PROPRIETARY_APE),)
 APE_IMAGE_FN=$(USE_PROPRIETARY_APE)
 else
-APE_IMAGE_FN=ape_code.bs.bin
+ifneq ($(USE_REF_APE),)
+APE_IMAGE_FN=ape_code_ref.bs.bin
+else
+APE_IMAGE_FN=ape_code_poc.bs.bin
+endif
 endif
 
 ARM_CFLAGS=
 TARGET_CFLAGS=-Wno-undefined-internal -DAPE_IMAGE_FN='"$(APE_IMAGE_FN)"'
 
-all: otg.bin otg_dummy.bin otgdbg otgimg apeimg ape_shell.bin ape_code.bs.bin
+all: otg.bin otg_dummy.bin otgdbg otgimg apeimg ape_shell.bin $(APE_IMAGE_FN)
 
 clean:
 	rm -f otg*.bin *.o *.s *.ll-opt *.ll-unopt *.bin.tmp* otgdbg otgimg s1stamp s2stamp apeimg apestamp
@@ -90,15 +94,15 @@ apebyteswap: apebyteswap.o
 apebyteswap.o: apebyteswap.c otg.h otg_common.c
 	$(HOST_CC) -c $(HOST_CFLAGS) -o "$@" "$<" -DOTG_HOST
 
-ape_code.bs.bin: ape_code.bin apebyteswap
+ape_code_%.bs.bin: ape_code_%.bin apebyteswap
 	cp "ape_code.bin" "$@.tmp"
 	./apebyteswap "$@.tmp"
 	mv "$@.tmp" "$@"
-ape_code.bin: ape_code.o ape_code.ld apestamp apeimg
-	ld.lld -o "$@.tmp" --oformat binary -T ape_code.ld ape_code.o
+ape_code_%.bin: ape_code_%.o ape_code.ld apestamp apeimg
+	ld.lld -o "$@.tmp" --oformat binary -T ape_code.ld "$<"
 	./apestamp "$@.tmp" "$@.tmp2"
 	./apeimg info "$@.tmp2" 2>/dev/null | grep -E '^Defects:\s+none$$' >/dev/null
 	mv "$@.tmp2" "$@"
 	rm "$@.tmp"
-ape_code.o: ape_code.c
+ape_code_%.o: ape_code_%.c
 	./cc_arm "$@" "$<" -DOTG_APE $(ARM_CFLAGS)
