@@ -1,4 +1,10 @@
 #include <stdint.h>
+#include "otg.h"
+
+#define APE_IMAGE_NAME "LOAD"
+#define APE_VER_MAJOR  1
+#define APE_VER_MINOR  3
+#define APE_VER_PATCH  7
 
 #define CONSTP32(X)    (*(uint32_t*)(X))
 #define CONSTPP(X)     (*(void**)(X))
@@ -20,6 +26,9 @@
 #define APEDBG_CMD_MAGIC       0x5CAF0000
 
 #define APE_EVENT_STATUS CONSTP32(0x60220300)
+
+#define APE_MODE            CONSTP32(0x60200000)
+#define APE_MODE__EVENT_1   0x20
 
 #define NVIC_VECTOR_TABLE_OFFSET  CONSTPP(0xE000ED08)
 #define INT_HARD_FAULT   3
@@ -77,6 +86,15 @@ void APEShellStart(void) {
   APEDBG_CMD = 0;
 
   void **nvicTable = (void**)NVIC_VECTOR_TABLE_OFFSET;
+#ifdef APE_SHELL_LOAD
+  // Boot ROM doesn't set NVIC_VECTOR_TABLE_OFFSET, so set it up here.
+  if (!nvicTable) {
+    nvicTable = (void*)0x108000;
+    NVIC_VECTOR_TABLE_OFFSET = nvicTable;
+    APE_MODE |= APE_MODE__EVENT_1;
+  }
+#endif
+
   void *oldHardFaultHandler = nvicTable[INT_HARD_FAULT];
   nvicTable[INT_HARD_FAULT] = APEShell_IntHandler_HardFault;
 
@@ -127,6 +145,9 @@ asm(
   ".code 16\n"
   ".thumb_func\n"
   "APEShellEntrypoint:\n"
+#ifdef APE_SHELL_LOAD
+  "  ldr sp, =" STRINGIFY(STACK_END) "\n"
+#endif
   "  b APEShellStart\n"
   "\n"
   ".global APEShell_IntHandler_HardFault\n"
@@ -141,20 +162,33 @@ asm(
   "  \n"
   "\n"
   ".popsection\n"
-  );
+);
 
-/*
-asm(
-  ".pushsection .trailer,\"ax\",%progbits\n"
-  ".global APETrailer\n"
-  ".code 16\n"
-  ".thumb_func\n"
-  "APETrailer:\n"
-  "  push {r4,lr}\n"
-  "  ldr r4, APETarget\n"
-  "  blx  r4\n"
-  "  pop {r4,pc}\n"
-  "APETarget:\n"
-  "  .4byte APEShellEntrypoint\n"
-  ".popsection\n"
-  );*/
+#ifdef APE_SHELL_LOAD
+extern char _TextSize[];
+
+const __attribute__((section(".header"))) ape_header gAPE_header = {
+  .magic          = "BCM\x1A",
+  .unk04          = 0x03070700,                 // Unknown, not read by boot ROM.
+  .imageName      = APE_IMAGE_NAME " " STRINGIFY(APE_VER_MAJOR) "." STRINGIFY(APE_VER_MINOR) "." STRINGIFY(APE_VER_PATCH),
+  .imageVersion   = (APE_VER_MAJOR<<24) | (APE_VER_MINOR<<16) | (APE_VER_PATCH<<8),
+
+  .entrypoint     = (0x00100A00)|1,
+
+  .unk020         = 0x00,                       // Unknown, not read by boot ROM.
+  .headerSize     = sizeof(ape_header)/4,
+  .unk022         = 0x04,                       // Unknown, not read by boot ROM.
+  .numSections    = 1,
+  .headerChecksum = 0xDEADBEEF,                 // Checksums are fixed later in apestamp.
+
+  .sections = {
+    [0] = {
+      .loadAddr         = 0x00100A00,
+      .offsetFlags      = 0x78|BIT(26)|BIT(27),
+      .uncompressedSize = (uint32_t)_TextSize,
+      .compressedSize   = 0,
+      .checksum         = 0xDEADBEEF,
+    },
+  },
+};
+#endif

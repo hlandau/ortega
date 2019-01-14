@@ -821,3 +821,249 @@ The following actions are taken late in init, immediately before the S2 main loo
   - Set `GEN_FIRMWARE_MBOX` to `BOOTCODE_READY_MAGIC`.
 
 Then the main loop happens.
+
+## The APE
+
+The APE is a Cortex-M3 running in little-endian mode. There is one APE per
+entire chip (not per port) and it serves all ports. It has direct access to a
+number of peripherals reserved exclusively for it and which cannot be used by
+the MIPS CPUs. It also shares a few peripherals with the MIPS CPUs and host
+(e.g. NVM access).
+
+Most of the APE's memory and register space is wholly separate from the ranges
+exposed to the MIPS cores and the host and cannot be accessed except by
+obtaining control over the APE core.
+
+The APE is used to implement NC-SI, and processes and copies frames in software
+from/to the network to/from a BMC attached by NC-SI RGMII or SMBus. Because
+this is done in software by a Cortex-M3, it has pretty poor performance, so be
+it.
+
+Examples of peripherals available to the APE include:
+
+  - Some sort of debug UART on the chip (haven't looked at this)
+  - SMBus (one of the options for NC-SI, haven't looked at this)
+  - NC-SI RGMII (one of the options for NC-SI, now well understood)
+  - Lock/Arbitration Registers (shared with MIPS cores, host, etc.)
+  - NVM Access Registers (shared with MIPS cores, host, etc.)
+  - Network TX/RX ranges (used to TX/RX to/from the network ports, one range for each port)
+  - Host-to-BMC/BMC-to-host ranges (not yet understood but appears to work similarly)
+  - APE RX Management Filters (controls what RX traffic gets forwarded to the APE)
+  - A few GPIOs (the "APE GPIOs")
+
+There is a small amount of shared memory for each function, which the APE uses
+to communicate with each function. The shared memory region for port x is
+available to the APE and the MIPS core for that port. These shared regions are
+also all available to the host.
+
+The SHM region for function 0 is used predominantly for communication between
+the APE and the host, and also by the APE to store various bookkeeping
+information that should be preserved between resets of the APE. SHM regions for
+functions 1, 2, 3 use the same layout, but are barely used with only the region
+for APE-to-MIPS/MIPS-to-APE communication being used.
+
+For implementing NC-SI, the following areas of functionality must be implemented:
+
+  - TX To Network
+  - RX From Network
+  - TX To RGMII
+  - RX From RGMII
+  - Initialization (especially of management filters, else RX from net won't work)
+  - NC-SI Control Packet Handling (see the DMTF NCSI specification)
+
+Let's discuss each of these units.
+
+### TX To Network
+
+The following memory ranges are involved in TX to network:
+
+  - `0xA002_0000 + 0x2000*port`, size `0x2000`, `0 <= port < 4` (i.e.,
+    `[0xA002_2000, 0xA002_3FFF]` for the second port, etc.).
+
+    This is the memory range into which frames to transmit to the network
+    must be written. It is *write-only*; reads will return all-zeroes,
+    don't bother trying it.
+
+  - `REG_APE__TX_TO_NET_POOL_MODE_STATUS`.
+  - `REG_APE__TX_TO_NET_BUF_ALLOC`.
+  - `REG_APE__TX_TO_NET_DOORBELL`.
+
+The DOORBELL register is written after you've finished squirting a frame into
+the write-only region, with an encoded location of the frame in that region.
+
+The BUF_ALLOC and POOL_MODE_STATUS registers control allocation of that
+write-only region. The region is allocated in blocks of 128 bytes
+(`NET_BLOCK_SIZE`), and frames that take more than one block must be spanned
+over multiple blocks. The allocation of blocks is done by hardware, not
+software, using these registers.
+
+**Initialization.** Before you can TX to network, you need to initialize the resources:
+
+  - Set `REG_APE__TX_TO_NET_POOL_MODE_STATUS` for a given port to
+    `REG_APE__TX_TO_NET_POOL_MODE_STATUS__ENABLE`. This sets up the block
+    allocator which parcels out blocks of the write-only TX buffer region.
+
+**Transmission.** To transmit a frame to the network, consider the following:
+
+  - You will need to allocate enough blocks to store the frame via the block allocation
+    procedure below.
+
+  - Each block has a header. The first block of a frame has a bigger header.
+
+  - Use the documentation of the block formats below to fill out a frame across as many
+    blocks as necessary.
+
+  - Once you've written the frame across one or more blocks, set the DOORBELL
+    register, with the HEAD field set to the first block number of the frame,
+    the TAIL field set to the last block number of the frame, and the LEN field
+    set to the number of blocks. You're now done.
+
+    A block is 128 bytes, so a block number is the offset from the start of the
+    write-only region in units of 128 bytes.
+
+The format for each block in a frame is as follows. Each line is a 32-bit word:
+
+    0  Control
+         bits  0: 6: Block Payload Length
+         bits  7:??: Block Number of Subsequent Block (or 0 if last)
+         bit     30: Set for first block    (guessed)
+         bit     31: Set if NOT last block  (guessed)
+    1  (Not written - leave uninitialized)
+
+    IF FIRST BLOCK:
+      2  Set to 0
+      3  Set to number of bytes the frame is (not including FCS)
+      4  Set to 0
+      5  Set to 0
+      6  Set to 0
+      7  Set to 0
+      8  Set to 0
+      9  Set to number of blocks the frame needs
+     10  (Not written - leave uninitialized)
+     11  (Not written - leave uninitialized)
+     12  (First word of actual payload, i.e. first word of Etherframe header, i.e. Dst MAC bytes 0-3)
+     ... Payload continues
+    ELSE:
+      2  (First word of actual payload for this block)
+      ... Payload continues
+
+Due to the larger header of the first block, there's less room for frame data.
+
+NOTE: Send frames without an FCS. The buffer length should be for an Ethernet
+frame including header in bytes but without the FCS. Failure to observe this
+rule may involve bizarre phenomena where ARP and ICMPv4 pass freely, but
+TCP/UDPv4 are mysteriously eaten (unless the Ethertype is changed to something
+other than IPv4, in which case they pass).
+
+NOTE: Keep in mind Ethernet has a minimum frame length.
+
+**Block allocation procedure.** Here's how to allocate a TX block. Ensure
+you've done the initialization of the allocator already.
+
+  - Set `REG_APE__TX_TO_NET_BUF_ALLOC` for the given port to REQ.
+  - Poll the same register in a spin loop until `REG_APE__TX_TO_BUF_ALLOC__STATE` is `READY`.
+  - Now your allocated block number is in `REG_APE__TX_TO_BUF_ALLOC__BLOCK`. This is in
+    units of 128 bytes from the start of the write-only region for the given port
+    (i.e. `0xA002_0000 + portNo*0x2000 + blockNo*128`).
+
+**Errors.** Please note, if you get some of the frame length fields wrong this
+will cause the hardware to raise an error. This raises `EXTINT_TX_ERROR`,
+and upon examining `REG_APE__TX_STATE` you will find:
+
+  - TXERR set, indicating that the error code field is valid (W2C), and
+  - the error code field set to one of the values specified in otg.h.
+
+This should never happen during normal (or exceptional) operation — it
+indicates a programming error. Please *also* note that not *all* programming
+errors in driving the TX To Network system result in one of these exceptions;
+e.g. the TCP/UDP disappearance phenomenon noted above when using incorrect
+buffer lengths.
+
+### RX From Network
+
+TODO
+
+### TX To RMU (RGMII NC-SI)
+
+The RGMII NC-SI peripheral is known as the "RMU". This is a variant of Gigabit
+Ethernet's RGMII MAC-PHY interface, with a few small changes as specified by
+the DMTF NC-SI specification. The APE core uses this peripheral to send and
+receive Ethernet frames to/from a BMC. An interrupt is available for notification
+of when a frame has been received (`EXTINT_RMU_EGRESS`).
+
+**Initialization.** To setup the RMU so that it can be used, do this:
+
+  - Enable the following bits in `REG_APE__MODE`:
+
+    - `SWAP_{ATB,ARB}_DWORD`
+    - `MEMORY_ECC`
+    - `ICODE_PIP_RD_DISABLE`
+
+  - Set `REG_APE__RMU_CONTROL` to `AUTO_DRV|RX|TX`. Also set bits 19 and 20
+    (meaning unknown).
+
+  - Set `REG_APE__BMC_NC_RX_CONTROL` to FLOW_CONTROL=1, HWM=0x240, XON_THRESHOLD=0x201F.
+
+  - Set `REG_APE__NC_BMC_TX_CONTROL` to 0.
+
+  - Set all eight `REG_APE__BMC_NC_RX_SRC_MAC_MATCHN_{HIGH,LOW}` to zero.
+
+  - Set `REG_APE__ARB_CONTROL` as desired. Suggest PACKAGE_ID=0, TKNREL=0x14,
+    START, and setting unknown bit 26 to 1.
+
+**Transmission.** To transmit a frame to the BMC, do this:
+
+  - The minimum frame size is 60 bytes (FCS is calculated automatically, don't include it).
+    Pad it with zero words if necessary.
+
+  - Wait for enough buffer space inside the RMU unit to be available.
+    Spin until `REG_APE__NC_BMC_TX_STATUS__IN_FIFO` (which expresses the number
+    of 32-bit words of spare room in the internal FIFO) is enough for the size
+    of the frame you want to transmit.
+
+  - Write every 32-bit word of the frame you want to transmit, *except the last word*,
+    to `REG_APE__NC_BMC_TX_BUF_WRITE`. Every write to this register pushes a 32-bit
+    word onto the FIFO. You may need to endian-swap each word.
+
+  - Before writing the last word, write to `REG_APE__NC_BMC_TX_CONTROL` with
+    LAST_BYTE_COUNT=the size of the frame in bytes, modulo 4. In other words,
+    this specifies how many bytes of the last word written are part of the
+    frame, as frames aren't necessarily a multiple of four bytes in length.
+
+  - Finally, write the last word to `REG_APE__NC_BMC_TX_BUF_WRITE_LAST`.
+    Writing to this instead of `REG_APE__NC_BMC_TX_BUF_WRITE` indicates that
+    this is the last word in the frame.
+
+### RX From RMU (RGMII NC-SI)
+
+**Initialization.** See TX To RMU for the RMU init requirements.
+
+**Reception.** To receive a frame from the BMC, do this:
+
+  - Poll `REG_APE__BMC_NC_RX_STATUS` and ensure the `NEW` flag is set. If it isn't,
+    there's no frame to receive; stop here.
+
+  - The `REG_APE__BMC_NC_RX_STATUS__PACKET_LEN` field expresses the incoming
+    frame length in bytes.
+    
+    Note: `REG_APE__BMC_NC_RX_STATUS__PASSTHRU` appears to indicate whether
+    this is expected by the hardware to be a "pass-through" (that is,
+    to-the-network) frame. Purpose of this field is unknown, since APE core can
+    easily inspect frame itself to determine if it's an NCSI control packet or
+    intended for passthrough, etc.
+
+  - Read `REG_APE__BMC_NC_RX_BUF_READ` for each 32-bit word of the frame.
+    Each read of this register pops one word of the incoming frame from the RX
+    FIFO. You may need to endian-swap each word.
+
+    **Please note** that it is essential that the correct number of reads be
+    performed as the APE does not have any other way of communicating that it
+    has finished consuming the frame.
+
+  - Finally, read `REG_APE__BMC_NC_RX_BUF_READ` one more time. The value read
+    can be discarded. This appears to just be a spacer FIFO pop which must
+    happen after each frame RX.
+
+Note that `EXTINT_RMU_EGRESS` is a **level-triggered** interrupt asserted
+whenever there is data available for RX, so you will need to mask it when it
+fires, then do the above to get the received frame.

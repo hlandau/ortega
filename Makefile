@@ -19,7 +19,9 @@ endif
 ARM_CFLAGS=
 TARGET_CFLAGS=-Wno-undefined-internal -DAPE_IMAGE_FN='"$(APE_IMAGE_FN)"'
 
-all: otg.bin otg_dummy.bin otgdbg otgimg apeimg ape_shell.bin $(APE_IMAGE_FN)
+.PRECIOUS: ape_code_%.bin
+
+all: otg.bin otg_dummy.bin otgdbg otgimg apeimg ape_shell.bin ape_shell_load.bin $(APE_IMAGE_FN)
 
 clean:
 	rm -f otg*.bin *.o *.s *.ll-opt *.ll-unopt *.bin.tmp* otgdbg otgimg s1stamp s2stamp apeimg apestamp
@@ -82,7 +84,15 @@ byteswap.o: byteswap.c otg.h otg_common.c
 ape_shell.bin: ape_shell.o ape_shell.ld
 	ld.lld -o "$@" --oformat binary -T ape_shell.ld ape_shell.o
 ape_shell.o: ape_shell.c
-	./cc_arm "$@" "$<" -DAPE_SHELL $(ARM_CFLAGS)
+	./cc_arm "$@" "$<" -DOTG_APE -DAPE_SHELL $(ARM_CFLAGS)
+
+ape_shell_load.bin: ape_shell_load.o ape_shell_load.ld apestamp
+	ld.lld -o "$@.tmp" --oformat binary -T ape_shell_load.ld ape_shell_load.o
+	./apestamp "$@.tmp" "$@.tmp2"
+	mv "$@.tmp2" "$@"
+	rm "$@.tmp"
+ape_shell_load.o: ape_shell.c
+	./cc_arm "$@" "$<" -DOTG_APE -DAPE_SHELL -DAPE_SHELL_LOAD $(ARM_CFLAGS)
 
 apestamp: apestamp.o
 	$(HOST_CC) -flto -O3 -o "$@" $^

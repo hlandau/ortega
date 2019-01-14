@@ -1251,19 +1251,8 @@ static int _CmdBootmem(int pargc, int argc, char **argv) {
   return 0;
 }
 
-static int _UsageBootAPE(int pargc, int argc, char **argv) {
-  fprintf(stderr, "usage: <ape.bin>");
-  PrintCommand(pargc, argc, argv);
-  fprintf(stderr, "\n");
-  return -2;
-}
-
-
-static int _CmdBootAPE(int pargc, int argc, char **argv) {
-  if (argc < 2)
-    return _UsageBootAPE(pargc, argc, argv);
-
-  int fd = open(argv[1], O_RDONLY|O_SYNC);
+static int _BootAPELoader(const char *fn) {
+  int fd = open(fn, O_RDONLY|O_SYNC);
   if (fd < 0) {
     fprintf(stderr, "error: couldn't open file\n");
     return -1;
@@ -1295,13 +1284,175 @@ static int _CmdBootAPE(int pargc, int argc, char **argv) {
 
   uint32_t *words = virt;
   size_t numWords = st.st_size/4;
-  uint32_t addr = 0x10D800;
+  uint32_t addr = 0;
   for (size_t i=0; i<numWords; ++i)
-    SetAPEWord(addr + i*4, words[i]);
+    SetReg(APE_REG(0x4B00+i*4), words[i]);
 
-  SetReg(REG_APE__GPIO_MSG, 0xD800|0x100002);
-  MaskReg(REG_APE__MODE, REG_APE__MODE__HALT);
-  OrReg(REG_APE__MODE, REG_APE__MODE__RESET);
+  SetReg(REG_APE__GPIO_MSG, 0x60220B00|2);
+
+  MaskOrReg(REG_APE__MODE, REG_APE__MODE__HALT, REG_APE__MODE__RESET|REG_APE__MODE__FAST_BOOT);
+  return 0;
+}
+
+static int _UsageBootAPELoader(int pargc, int argc, char **argv) {
+  fprintf(stderr, "usage: ");
+  PrintCommand(pargc, argc, argv);
+  fprintf(stderr, "<ape_shell_load.bin>\n");
+  return -2;
+}
+
+static int _CmdBootAPELoader(int pargc, int argc, char **argv) {
+  int ec;
+  
+  if (argc < 2)
+    return _UsageBootAPELoader(pargc, argc, argv);
+
+  ec = _BootAPELoader(argv[1]);
+  if (ec < 0)
+    return ec;
+
+  return 0;
+}
+
+static int _WaitForAPEShell(void) {
+  uint32_t timeout = 50000;
+  while (GetReg(REG_APE__APEDBG_STATE) != REG_APE__APEDBG_STATE__RUNNING) {
+    if (!timeout--) {
+      _WarnAboutAPEState("timed out waiting for apedbg to be ready");
+      return -1;
+    }
+
+    usleep(10);
+  }
+
+  return 0;
+}
+
+static ssize_t _ChainAPE_Write(uint8_t ch, void *arg) {
+  static uint8_t buf[4];
+
+  uint32_t *cursor = (uint32_t*)arg;
+  uint32_t addr = *cursor;
+  buf[addr % 4] = ch;
+  ++addr;
+  if (!(addr % 4))
+    SetAPEMemShell(addr-4, *(uint32_t*)buf);
+
+  *cursor = addr;
+  return 1;
+}
+
+static int _ChainAPE(const char *fn) {
+  int ec;
+
+  // Wait for APE shell to come up.
+  ec = _WaitForAPEShell();
+  if (ec < 0)
+    return ec;
+
+  // Open image file.
+  int fd = open(fn, O_RDONLY|O_SYNC);
+  if (fd < 0) {
+    fprintf(stderr, "error: couldn't open file: %s\n", fn);
+    return -1;
+  }
+
+  struct stat st;
+  if (fstat(fd, &st) < 0) {
+    fprintf(stderr, "error: couldn't stat file\n");
+    return -1;
+  }
+
+  if (st.st_size < sizeof(ape_header)) {
+    fprintf(stderr, "error: undersized image\n");
+    return -1;
+  }
+
+  void *virt = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
+  if (!virt) {
+    fprintf(stderr, "error: couldn't mmap file\n!");
+    return -1;
+  }
+
+  ape_header *hdr     = virt;
+  uint32_t entrypoint = le32toh(hdr->entrypoint)|1;
+  for (size_t i=0; i<hdr->numSections; ++i) {
+    uint32_t loadAddr = le32toh(hdr->sections[i].loadAddr);
+    uint32_t offsetFlags = le32toh(hdr->sections[i].offsetFlags);
+    uint32_t offset = offsetFlags & 0xFFFFFF;
+    uint32_t uncompressedSize = le32toh(hdr->sections[i].uncompressedSize);
+    uint32_t compressedSize = le32toh(hdr->sections[i].compressedSize);
+    uint32_t secChecksumEx = le32toh(hdr->sections[i].checksum);
+    bool isZero = !!(offsetFlags & APE_SECTION_FLAG_ZERO_ON_FAST_BOOT);
+
+    if (loadAddr % 4 || (!isZero && !!(uncompressedSize % 4))) {
+      fprintf(stderr, "error: load address must be aligned\n");
+      return -1;
+    }
+
+    if (isZero)
+      for (size_t j=0; j<uncompressedSize; j += 4)
+        SetAPEMemShell(loadAddr + j, 0);
+    else if (offsetFlags & APE_SECTION_FLAG_COMPRESSED) {
+      size_t bytesRead = 0, bytesWritten = 0;
+      uint32_t cursor = loadAddr;
+      Decompress((uint8_t*)virt + offset, compressedSize, uncompressedSize, _ChainAPE_Write, &cursor, &bytesRead, &bytesWritten);
+
+      if (bytesWritten != uncompressedSize) {
+        fprintf(stderr, "error: decompression failure, underwrite: %lu %u\n", bytesWritten, uncompressedSize);
+        return -1;
+      }
+    } else {
+      for (size_t j=0; j<uncompressedSize; j += 4)
+        SetAPEMemShell(loadAddr + j, *(uint32_t*)((uint8_t*)virt + offset + j));
+    }
+  }
+
+  if (_WaitAPEShellCmd())
+    return -1;
+
+  SetReg(REG_APE__APEDBG_ARG0, entrypoint);
+  SetReg(REG_APE__APEDBG_CMD,
+    REG_APE__APEDBG_CMD__MAGIC
+   |REG_APE__APEDBG_CMD__TYPE__CALL_0);
+
+  return 0;
+}
+
+static int _UsageChainAPE(int pargc, int argc, char **argv) {
+  fprintf(stderr, "usage: ");
+  PrintCommand(pargc, argc, argv);
+  fprintf(stderr, "<ape_code.bin>\n");
+  return -2;
+}
+
+static int _CmdChainAPE(int pargc, int argc, char **argv) {
+  if (argc < 2)
+    return _UsageChainAPE(pargc, argc, argv);
+
+  return _ChainAPE(argv[1]);
+}
+
+static int _UsageBootAPE(int pargc, int argc, char **argv) {
+  fprintf(stderr, "usage: ");
+  PrintCommand(pargc, argc, argv);
+  fprintf(stderr, "<ape_shell_load.bin> <ape_code.bin>\n");
+  return -2;
+}
+
+static int _CmdBootAPE(int pargc, int argc, char **argv) {
+  int ec;
+  
+  if (argc < 3)
+    return _UsageBootAPE(pargc, argc, argv);
+
+  ec = _BootAPELoader(argv[1]);
+  if (ec < 0)
+    return ec;
+
+  ec = _ChainAPE(argv[2]);
+  if (ec < 0)
+    return ec;
 
   return 0;
 }
@@ -2203,12 +2354,20 @@ static const command_def_t _commands[] = {
    .func = _CmdBootmem,
   },
   {.name = "bootape",
-   .tagline = "Experimental",
+   .tagline = "Autoboot APE image via shellloader (ape_shell_load.bin)",
    .func = _CmdBootAPE,
   },
   {.name = "bootapeshell",
    .tagline = "Run APE shellcode",
    .func = _CmdBootAPEShell,
+  },
+  {.name = "bootapeloader",
+   .tagline = "Boot APE shellloader",
+   .func = _CmdBootAPELoader,
+  },
+  {.name = "chainape",
+   .tagline = "Chainload APE image (assumes APE shell currently running)",
+   .func = _CmdChainAPE,
   },
   {.name = "tail",
    .tagline = "Stream out OTG debug log from device",

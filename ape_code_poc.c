@@ -25,7 +25,36 @@ static_assert(sizeof(BUILD_TIME) == ( 8+1), "build time");
 #ifdef PROPRIETARY
 /*               scrubbed                    */
 /*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
 #endif
+
+/* Utilities {{{1
+ * ---------
+ */
+void *memset(void *p, int c, size_t n) {
+  uint8_t *p_ = p;
+  for (size_t i=0; i<n; ++i)
+    *p_++ = c;
+  return p;
+}
+
+void *memcpy(void *d, const void *s, size_t n) {
+  uint32_t *d32 = d;
+  const uint32_t *s32 = s;
+
+  for (; n >= 4; n -= 4)
+    *d32++ = *s32++;
+
+  uint8_t *d8 = (uint8_t*)d32;
+  const uint8_t *s8 = (const uint8_t*)s32;
+  for (; n > 0; --n)
+    *d8++ = *s8++;
+
+  return d;
+}
 
 /* ISRs {{{1
  * ----
@@ -33,7 +62,8 @@ static_assert(sizeof(BUILD_TIME) == ( 8+1), "build time");
 extern isr_table g_isrTable;
 
 noreturn void AHang(void) {
-  for(;;);
+  for (;;)
+    asm volatile("wfi");
 }
 
 INTERRUPT void ISR_Exception(isr_args *args) {
@@ -89,10 +119,906 @@ INTERRUPT void ISR_SVCall(isr_args *args) {
   ISR_GET_REGS();
 }
 
+INTERRUPT void ISR_RXEvenPorts(isr_args *args) {
+  ISR_GET_REGS();
+
+#ifdef PROPRIETARY
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+#endif
+}
+
+INTERRUPT void ISR_RXOddPorts(isr_args *args) {
+  ISR_GET_REGS();
+
+#ifdef PROPRIETARY
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+#endif
+}
+
+INTERRUPT void ISR_RMUEgress(isr_args *args) {
+  ISR_GET_REGS();
+
+#ifdef PROPRIETARY
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+#endif
+}
+
+
+/* Utilities {{{1
+ * ---------
+ */
+#ifdef PROPRIETARY
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+#endif
+
+/* TX To Network {{{1
+ * -------------
+ */
+#ifdef PROPRIETARY
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+#endif
+
+/* RX From Network {{{1
+ * ---------------
+ */
+#ifdef PROPRIETARY
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+#endif
+
+/* RMU {{{1
+ * ---
+ */
+#ifdef PROPRIETARY
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+#endif
+
+/* NCSI {{{1
+ * ----
+ */
+#ifdef PROPRIETARY
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+#endif
+
 /* Main {{{1
  * ----
  */
 #ifdef PROPRIETARY
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
@@ -155,10 +1081,18 @@ INTERRUPT void ISR_SVCall(isr_args *args) {
 /*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
 #endif
 
 NO_INLINE void AStart(void) {
 #ifdef PROPRIETARY
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
@@ -260,16 +1194,16 @@ __attribute__((section(".isrtable"))) isr_table g_isrTable = {
     [EXTINT_HANDLE_EVENT]                   = ISR_Exception,
     [EXTINT_03H]                            = ISR_Exception,
     [EXTINT_H2B]                            = ISR_Exception,
-    [EXTINT_0AH]                            = ISR_Exception,
-    [EXTINT_RX_PACKET_EVEN_PORTS]           = ISR_Exception,
+    [EXTINT_TX_ERR]                         = ISR_Exception,
+    [EXTINT_RX_PACKET_EVEN_PORTS]           = ISR_RXEvenPorts,
     [EXTINT_SMBUS_0]                        = ISR_Exception,
     [EXTINT_SMBUS_1]                        = ISR_Exception,
-    [EXTINT_RMU_EGRESS]                     = ISR_Exception,
+    [EXTINT_RMU_EGRESS]                     = ISR_RMUEgress,
     [EXTINT_GEN_STATUS_CHANGE]              = ISR_Exception,
     [EXTINT_VOLTAGE_SOURCE_CHANGE]          = ISR_Exception,
     [EXTINT_LINK_STATUS_CHANGE_EVEN_PORTS]  = ISR_Exception,
     [EXTINT_LINK_STATUS_CHANGE_ODD_PORTS]   = ISR_Exception,
-    [EXTINT_RX_PACKET_ODD_PORTS]            = ISR_Exception,
+    [EXTINT_RX_PACKET_ODD_PORTS]            = ISR_RXOddPorts,
   },
 };
 

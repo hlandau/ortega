@@ -52,10 +52,18 @@
 #  define ARRAYLEN(X) (sizeof(X)/sizeof((X)[0]))
 #endif
 
-// check these
-#define BIT(Num) (UINT32_C(1)<<(Num))
-#define BITS(LowerIncl, UpperIncl) \
-  (((UINT32_C(0xFFFFFFFF) >> (LowerIncl)) << (LowerIncl)) << (31-(UpperIncl)) >> (31-(UpperIncl)))
+#define CTZL(N)               __builtin_ctzl(N)
+#define MASK_TO_SHIFT(Mask)   ((Mask) ? CTZL(Mask) : 0)
+#define BIT(N)        (1UL<<(N))
+#define BITS(Lo, Hi)  ((UINTPTR_MAX<<(Lo)) & (UINTPTR_MAX>>((sizeof(uintptr_t)*8-1)-(Hi))))
+#define GETBIT(Value, N)      (((Value) & BIT(N)       ) >> (N))
+#define GETBITS(Value, X, Y)  (((Value) & BITS((X),(Y))) >> (X))
+#define GETBITSM(Value, Mask) (((Value) & (Mask))        >> MASK_TO_SHIFT(Mask))
+#define PUTBITS(Value, X, Y)  (((Value) << (X)) & BITS((X),(Y)))
+#define PUTBITSM(Value, Mask) (((Value) << MASK_TO_SHIFT(Mask)) & (Mask))
+#define CHGBITS(OldValue, X, Y, NewValue) (((OldValue) & ~BITS((X),(Y)))|PUTBITS((NewValue), (X), (Y)))
+#define CHGBITSM(OldValue, Mask, NewValue) (((OldValue) & ~(Mask))|PUTBITSM((NewValue), (Mask)))
+
 
 #define REGMEM_BASE 0xC0000000
 #define GENCOM_BASE 0xB50
@@ -1614,7 +1622,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // These Dstate fields indicate the port is in D3 if set.
 // Otherwise the port is in D0-D2.
 #define REG_APE__STATUS__LAN_0_DSTATE         0x00000010 /* might actually be W2C has-changed indicator */
-#define REG_APE__STATUS__LAN_1_DSTATE         0x00000200 /* might actually be W2C has-changed indicator */
+#define REG_APE__STATUS__LAN_1_DSTATE         0x00000200 /* might actually be W2C has-changed indicator TODO: is this actually 0x100? */
 // 1: Fast boot mode. 0: NVRAM boot mode.
 #define REG_APE__STATUS__BOOT_MODE            0x00000020
 #define REG_APE__STATUS__PCIE_RESET           0x00000001
@@ -1643,53 +1651,132 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__EVENT            APE_REG(0x000C)
 #define REG_APE__EVENT__1         0x0000001
 
-// [0x0014]  Series APE+0x14 RXBufOffset - Func0
+// [0x0014]  Series APE+0x14 RX Queue Dequeue - Func0
 //   Examined on APE Packet RX interrupt.
 //   Appears to indicate incoming packet. Probably references offset into 0xA000_0000.
+//   The fields are block numbers (block size 128 bytes).
+//
+//   Note: only read this register once per frame, it likely mutates the queue state.
 //
 //   bit 30: Packet available to read?
 //   INT 0Bh handler / diag tool logdump appears to indicate this contains
 //   buffer head/tail/count:
 //     bits  0:11: tail
 //     bits 12:23: head
-//     bits 24:25: ?
+//     bit     24: toHost
+//     bit     25: ipFrag
 //     bits 26:29: count
 //     bit     30: indicates validity/packet is available to read
-//     bit     31: ?
+//     bit     31: ?  used on returning
 //
 //   r14x
 //             "larq_dq": "bufCnt", "head", "tail", flags ipFrag, toHost
 //             After receiving from network, if bit 30 is set, bit 31 is ORed in.
 //             Indicates some sort of conclusion...
-
-// [0x0018]  Series APE+0x14 RXBufOffset - Func1
+// [0x0018]  Series APE+0x14 RX Queue Dequeue - Func1
 //   See Func0. Same format.
+#define REG_APE__RX_QUEUE_DEQUEUE_F0    APE_REG(0x0014)
+#define REG_APE__RX_QUEUE_DEQUEUE_F1    APE_REG(0x0018)
+#define REG_APE__RX_QUEUE_DEQUEUE_F2    APE_REG(0x0200)
+#define REG_APE__RX_QUEUE_DEQUEUE_F3    APE_REG(0x0300)
+static inline uint32_t REG_APE__RX_QUEUE_DEQUEUE(uint32_t func) {
+  switch (func) {
+    default:
+    case 0: return REG_APE__RX_QUEUE_DEQUEUE_F0;
+    case 1: return REG_APE__RX_QUEUE_DEQUEUE_F1;
+    case 2: return REG_APE__RX_QUEUE_DEQUEUE_F2;
+    case 3: return REG_APE__RX_QUEUE_DEQUEUE_F3;
+  }
+}
+#define REG_APE__RX_QUEUE_DEQUEUE__TAIL__MASK   BITS( 0,11)
+#define REG_APE__RX_QUEUE_DEQUEUE__HEAD__MASK   BITS(12,23)
+#define REG_APE__RX_QUEUE_DEQUEUE__COUNT__MASK  BITS(26,29)
+#define REG_APE__RX_QUEUE_DEQUEUE__VALID        BIT (30)
 
-// [0x001C]  Series APE+0x1C "TX To Network Doorbell" - Func0
+// [0x001C]  Series APE+0x1C "TX To Network Enqueue" - Func0
+// [0x0120]  Series APE+0x1C "TX To Network Enqueue" - Func1
+// [0x0204]  Series APE+0x1C "TX To Network Enqueue" - Func2
+// [0x0304]  Series APE+0x1C "TX To Network Enqueue" - Func3
+//   "latq_enq"
 //   Relates to Func0.
 //   Written on APE TX to network after filling 0xA002 buffer with packet.
 //     bits  0:11: prob tail -- set to offset in 0xA002 buffer to which
 //                   LAST block of outgoing frame has just been written
 //     bits 12:23: prob head -- set to offset in 0xA002 buffer to which
 //                   FIRST block of outgoing frame has just been written
-//     bits 24:31: probably length. in bytes, I think
+//     bits 24:27: length (pktbufcnt)
+//     bit     28: latq_full
 //   CONFIRMED via testing, pretty much
+#define REG_APE__TX_TO_NET_DOORBELL_F0    APE_REG(0x001C)
+#define REG_APE__TX_TO_NET_DOORBELL_F1    APE_REG(0x0120)
+#define REG_APE__TX_TO_NET_DOORBELL_F2    APE_REG(0x0204)
+#define REG_APE__TX_TO_NET_DOORBELL_F3    APE_REG(0x0304)
+static inline uint32_t REG_APE__TX_TO_NET_DOORBELL(uint32_t func) {
+  switch (func) {
+    default:
+    case 0: return REG_APE__TX_TO_NET_DOORBELL_F0;
+    case 1: return REG_APE__TX_TO_NET_DOORBELL_F1;
+    case 2: return REG_APE__TX_TO_NET_DOORBELL_F2;
+    case 3: return REG_APE__TX_TO_NET_DOORBELL_F3;
+  }
+}
 
-// [0x008C]  Series APE+0x8C Unknown - Func0
-// [0x0110]  Series APE+0x8C Unknown - Func1
-// [0x0220]  Series APE+0x8C Unknown - Func2
-// [0x0320]  Series APE+0x8C Unknown - Func3
+#define REG_APE__TX_TO_NET_DOORBELL__TAIL__MASK   BITS( 0,11)
+#define REG_APE__TX_TO_NET_DOORBELL__HEAD__MASK   BITS(12,23)
+#define REG_APE__TX_TO_NET_DOORBELL__LEN__MASK    BITS(24,31)
+
+// [0x008C]  Series APE+0x8C TX To Net Pool Mode/Status - Func0
+// [0x0110]  Series APE+0x8C TX To Net Pool Mode/Status - Func1
+// [0x0220]  Series APE+0x8C TX To Net Pool Mode/Status - Func2
+// [0x0320]  Series APE+0x8C TX To Net Pool Mode/Status - Func3
+//     bits  8:23:  fullcnt
+//     bit      6:  reset
+//     bit      5:  error
+//     bit      4:  empty
+//     bit      2:  enable
+//     bit      1:  halt done
+//     bit      0:  halt
+//
+//   Must set ENABLE before the APE TX To Net Buffer Allocator
+//   register below will work.
+#define REG_APE__TX_TO_NET_POOL_MODE_STATUS_F0  APE_REG(0x008C)
+#define REG_APE__TX_TO_NET_POOL_MODE_STATUS_F1  APE_REG(0x0110)
+#define REG_APE__TX_TO_NET_POOL_MODE_STATUS_F2  APE_REG(0x0220)
+#define REG_APE__TX_TO_NET_POOL_MODE_STATUS_F3  APE_REG(0x0320)
+static inline uint32_t REG_APE__TX_TO_NET_POOL_MODE_STATUS(uint32_t func) {
+  switch (func) {
+    default:
+    case 0: return REG_APE__TX_TO_NET_POOL_MODE_STATUS_F0;
+    case 1: return REG_APE__TX_TO_NET_POOL_MODE_STATUS_F1;
+    case 2: return REG_APE__TX_TO_NET_POOL_MODE_STATUS_F2;
+    case 3: return REG_APE__TX_TO_NET_POOL_MODE_STATUS_F3;
+  }
+}
+
+#define REG_APE__TX_TO_NET_POOL_MODE_STATUS__ENABLE  0x04
+
 
 // [0x0090]  Series APE+0x90 "APE TX To Net Buffer Allocator" - Func0
 // [0x0114]  Series APE+0x90 "APE TX To Net Buffer Allocator" - Func1
 // [0x0224]  Series APE+0x90 "APE TX To Net Buffer Allocator" - Func2
 // [0x0324]  Series APE+0x90 "APE TX To Net Buffer Allocator" - Func3
+//   "atpm_alloc"
+//     bits  0:11:  index
+//     bit     12:  (request allocation bit...)
+//     bits 13:14:  state:
+//       0  processing
+//       1  allocated OK
+//       2  error: empty
+//       3  error: in halt
+//
 //   The low 12 bits of this seem to be an offset into the 0xA002 buffer
+//   
 //   which determines where the next packet TX'd to the network is
 //   written by the APE code. The low 10 bits are multiplied by 128
 //   to get the offset.
 //
 //   USAGE:
+//     Setup the allocator by writing 4 (meaning unknown) to Series APE+0x8C.
 //     Write 0x0000_1000 to this register.
 //     Poll the register until bits 13:14 are not 0b01 -- busy wait until allocation complete.
 //     The block number within the 0xA002_0000 buffer is now in bits 0:11.
@@ -1699,16 +1786,53 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 //     Finally finish it all off by writing to the Series APE+1C doorbell with length,
 //     first block no. and final block no.
 //
+#define REG_APE__TX_TO_NET_BUF_ALLOC_F0   APE_REG(0x0090)
+#define REG_APE__TX_TO_NET_BUF_ALLOC_F1   APE_REG(0x0114)
+#define REG_APE__TX_TO_NET_BUF_ALLOC_F2   APE_REG(0x0224)
+#define REG_APE__TX_TO_NET_BUF_ALLOC_F3   APE_REG(0x0324)
+static inline uint32_t REG_APE__TX_TO_NET_BUF_ALLOC(uint32_t func) {
+  switch (func) {
+    default:
+    case 0: return REG_APE__TX_TO_NET_BUF_ALLOC_F0;
+    case 1: return REG_APE__TX_TO_NET_BUF_ALLOC_F1;
+    case 2: return REG_APE__TX_TO_NET_BUF_ALLOC_F2;
+    case 3: return REG_APE__TX_TO_NET_BUF_ALLOC_F3;
+  }
+}
 
-// [0x0094]  Series APE+0x94 Unknown - Func0
-// [0x0118]  Series APE+0x94 Unknown - Func1
-// [0x0228]  Series APE+0x94 Unknown - Func2
-// [0x0328]  Series APE+0x94 Unknown - Func3
+#define REG_APE__TX_TO_NET_BUF_ALLOC__BLOCK__MASK   BITS( 0,11)
+#define REG_APE__TX_TO_NET_BUF_ALLOC__REQ           BIT (12)
+#define REG_APE__TX_TO_NET_BUF_ALLOC__STATE__MASK   BITS(13,14)
+#define REG_APE__TX_TO_NET_BUF_ALLOC__STATE__READY  (1U<<13)
 
-// [0x0098]  Series APE+0x98 Unknown - Func0
-// [0x011C]  Series APE+0x98 Unknown - Func1
-// [0x022C]  Series APE+0x98 Unknown - Func2
-// [0x032C]  Series APE+0x98 Unknown - Func3
+#define NET_BLOCK_SIZE    128
+#define TX_TO_NET_BASE    0xA0020000
+#define RX_FROM_NET_BASE  0xA0000000
+
+// [0x0094]  Series APE+0x94 "APE TX Pool Manager Ret" - Func0
+// [0x0118]  Series APE+0x94 "APE TX Pool Manager Ret" - Func1
+// [0x0228]  Series APE+0x94 "APE TX Pool Manager Ret" - Func2
+// [0x0328]  Series APE+0x94 "APE TX Pool Manager Ret" - Func3
+//   "atpm_ret"
+//     bits  0:11:  tail
+//     bits 12:23:  head
+//     bit     24:  ? (request bit?)
+//     bits 25:26:  state:
+//       0  processing
+//       1  retired OK
+//       2  error: full
+//       3  error: in halt
+//     bits 27:30:  bufcnt
+
+// [0x0098]  Series APE+0x98 APE TX Pool free_pt_a - Func0
+// [0x011C]  Series APE+0x98 APE TX Pool free_pt_a - Func1
+// [0x022C]  Series APE+0x98 APE TX Pool free_pt_a - Func2
+// [0x032C]  Series APE+0x98 APE TX Pool free_pt_a - Func3
+//   "free_pt_a"
+//     bits  0:11:  tail
+//     bits 12:23:  head
+//     bits 24:30:  freecnt
+
 
 // Note: tg3 driver uses PER_LOCK registers instead of these when the device is
 // not a 5761. Possibly these are obsolete.
@@ -1718,8 +1842,20 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 //#define REG_APE__LOCK_REQ         APE_REG(0x002C)
 //#define REG_APE__LOCK_GRANT       APE_REG(0x004C)
 
-// [0x0020]  Series APE+0x20 Unknown - Func0
-// [0x0024]  Series APE+0x20 Unknown - Func1
+// [0x0020]  Series APE+0x20 "TX State" - Func0
+// [0x0024]  Series APE+0x20 "TX State" - Func1
+// [0x0208]  Series APE+0x20 "TX State" - Func2
+// [0x0308]  Series APE+0x20 "TX State" - Func3
+//   "lats" -- APE TX State?
+//     bits  0:11:  tail
+//     bits 12:23:  head
+//     bit     24:  txerr (W2C)
+//     bit  25:27:  error code (valid if txerr set):
+//       0    (reserved)
+//       1    framelen mismatch
+//       2    mbufcnt mismatch
+//       ...  (reserved)
+//
 
 // [0x0028]  Unknown Mysterious
 // Observed: 0x6022_0000, which is Func0 APE SHM
@@ -1737,19 +1873,25 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__STATUS_2__LAN_2_DSTATE     0x0004 /* might be W2C has-changed indicator */
 #define REG_APE__STATUS_2__LAN_3_DSTATE     0x0080 /* might be W2C has-changed indicator */
 
-// [0x0040]  Series APE+0x40 Func0
+// [0x0040]  Series APE+0x40 "B2H Status" Func0
 //   Written with info when finished writing a frame to the network.
 //   Indicates end of transmission? Weird since actual data written to
-//   0xA008_0400 (for F0).
-// [0x0044]  Series APE+0x44 Func0
-// [0x0048]  Series APE+0x40 Func1
-// [0x004C]  Series APE+0x4C Func1
+//   0xA008_0400 (for F0). B2H related.
+// [0x0044]  Series APE+0x44 "B2H Enqueue" Func0
 
-// [0x0054]  Unknown, bit 0 checked by INT H2B
+// [0x0048]  Series APE+0x40 "B2H Status" Func1
+// [0x004C]  Series APE+0x4C "B2H ?" Func1
+
+// [0x0050]  H2B Cmd
+//   bit  2:  Swap DWORDs
+
+// [0x0054]  H2B Status
 //   bit     0: Not Empty
 //   bit     1: Underflow
-//   bit  8:24: Number of ... bytes? words?
+//   bit  8:23: Number of quadwords(?)
 //   bit 25:31:
+//
+//   bit 0 checked by INT H2B
 
 // [0x006C]  Unknown Mysterious
 // Observed: 0x6022_1000, which is Func1 APE SHM
@@ -1762,6 +1904,9 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // Grouping these together since they seem to be the same fields for different ports.
 // They all relate to the "APE RX Pool" ("ARPM") and "APE TX Pool" ("ATPM").
 // [0x0078]  Port 0 APE RX Pool Mode/Status
+// [0x007C]  Port 1 APE RX Pool Mode/Status
+// [0x0214]  Port 2 APE RX Pool Mode/Status
+// [0x0314]  Port 3 APE RX Pool Mode/Status
 //             0x00FF_FF00  "fullcnt"
 //             0x0000_0040  Reset
 //             0x0000_0020  Error
@@ -1769,44 +1914,89 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 //             0x0000_0004  Enable
 //             0x0000_0002  Halt Done
 //             0x0000_0001  Halt
-#define REG_APE__RX_POOL_MODE_STATUS__ENABLE    0x04
+#define REG_APE__RX_POOL_MODE_STATUS_F0         APE_REG(0x0078)
+#define REG_APE__RX_POOL_MODE_STATUS_F1         APE_REG(0x007C)
+#define REG_APE__RX_POOL_MODE_STATUS_F2         APE_REG(0x0214)
+#define REG_APE__RX_POOL_MODE_STATUS_F3         APE_REG(0x0314)
+static inline uint32_t REG_APE__RX_POOL_MODE_STATUS(uint32_t func) {
+  switch (func) {
+    default:
+    case 0: return REG_APE__RX_POOL_MODE_STATUS_F0;
+    case 1: return REG_APE__RX_POOL_MODE_STATUS_F1;
+    case 2: return REG_APE__RX_POOL_MODE_STATUS_F2;
+    case 3: return REG_APE__RX_POOL_MODE_STATUS_F3;
+  }
+}
+
+#define REG_APE__RX_POOL_MODE_STATUS__HALT            0x00000001
+#define REG_APE__RX_POOL_MODE_STATUS__HALT_DONE       0x00000002
+#define REG_APE__RX_POOL_MODE_STATUS__ENABLE          0x00000004
+#define REG_APE__RX_POOL_MODE_STATUS__EMPTY           0x00000010
+#define REG_APE__RX_POOL_MODE_STATUS__ERROR           0x00000020
+#define REG_APE__RX_POOL_MODE_STATUS__RESET           0x00000040
+#define REG_APE__RX_POOL_MODE_STATUS__FULLCNT__MASK   0x00FFFF00
 
 // [0x0084]  Port 0-related B - APE RX Pool "free_pt_a" (r89x)
 //             "free_pt_a": "head", "tail", ...
+//             tail    bits  0:11
+//             head    bits 12:23
+//             freecnt bits 24:30
+// [0x009C]  Port 1-related B - "free_pt_a"
+// [0x021C]  Port 2-related B
+// [0x031C]  Port 3-related B
+//
 // [0x0080]  Port 0-related D - APE RX Pool Ret (r80x)
+// [0x0088]  Port 1-related D - "arpm_ret"
+// [0x0218]  Port 2-related D
+// [0x0318]  Port 3-related D
 //             "arpm_ret", "bufCnt", "head", "tail"
 //             Used to indicate when the APE is done with a region of the 0xA000_0000 RX pool buffer
 //             so that it can be used to receive another frame.
 //             bits  0:11: tail
-//             bits 12:??: head
-//             bits 27:??: count
+//             bits 12:23: head
+//             bit     24: ??? used on returning
+//             bit  25:26: state:
+//               0=Processing
+//               1=Retired OK
+//               2=Error: Full
+//               3=Error: In Halt
+//             bits 27:30: count
+#define REG_APE__RX_POOL_RET_F0                   APE_REG(0x0080)
+#define REG_APE__RX_POOL_RET_F1                   APE_REG(0x0088)
+#define REG_APE__RX_POOL_RET_F2                   APE_REG(0x0218)
+#define REG_APE__RX_POOL_RET_F3                   APE_REG(0x0318)
+static inline uint32_t REG_APE__RX_POOL_RET(uint32_t func) {
+  switch (func) {
+    default:
+    case 0: return REG_APE__RX_POOL_RET_F0;
+    case 1: return REG_APE__RX_POOL_RET_F1;
+    case 2: return REG_APE__RX_POOL_RET_F2;
+    case 3: return REG_APE__RX_POOL_RET_F3;
+  }
+}
+
+#define REG_APE__RX_POOL_RET__TAIL__MASK    BITS( 0,11)
+#define REG_APE__RX_POOL_RET__HEAD__MASK    BITS(12,23)
+#define REG_APE__RX_POOL_RET__COUNT__MASK   BITS(27,30)
+
+
 //
-// [0x007C]  Port 1 APE RX Pool Mode/Status
-//             See port 0.
-// [0x009C]  Port 1-related B - "free_pt_a"
 // [0x0018]  Series APE+0x14 RXBufOffset Func1
-// [0x0088]  Port 1-related D - "arpm_ret"
 //
-// [0x0214]  Port 2 APE RX Pool Mode/Status
-//             See port 0.
-// [0x021C]  Port 2-related B
 // [0x0200]  Series APE+0x14 RXBufOffset Func2
-// [0x0218]  Port 2-related D
 //
-// [0x0314]  Port 3 APE RX Pool Mode/Status
-//             See port 0.
-// [0x031C]  Port 3-related B
 // [0x0300]  Series APE+0x14 RXBufOffset Func3
-// [0x0318]  Port 3-related D
 
 
-// [0x00A8]  Unknown, monotonically increasing value.
+// [0x00A8]  Unknown, monotonically increasing value. Increases at a rate of 1MHz.
 //   Reading this may have side effects?
-// [0x00AC]  Unknown, monotonically increasing value.
+#define REG_APE__TICKS_1M         APE_REG(0x00A8)
 
+// [0x00AC]  Unknown, monotonically increasing value. Increases at a rate of 1kHz.
+#define REG_APE__TICKS_1K         APE_REG(0x00AC)
 
-// [0x00B0]  "Ticks". Monotonically increasing value.
-#define REG_APE__TICKS            APE_REG(0x00B0)
+// [0x00B0]  "Ticks". Monotonically increasing value. Increases at a rate of 10Hz.
+#define REG_APE__TICKS_10         APE_REG(0x00B0)
 
 // [0x00B4]  Unknown Mysterious
 // Observed: 0xA004_0000, which is devreg for Func0
@@ -1872,15 +2062,8 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__CM3__CPU_STATUS__SHIFT  0
 #define REG_APE__CM3__ACTIVE_INTERRUPT__MASK 0xFF000000
 
-// [0x0120]  Series APE+1C Unknown - Func1
-//   Relates to Func1.
-
 // [0x0200]  Series APE+0x14 Unknown - Func2
 //   See Series APE+0x14 Func0. Same format.
-
-// [0x0204]  Series APE+1C Unknown - Func2
-//   Relates to Func2.
-// [0x0208]  Series APE+0x20 Unknown - Func2
 
 // [0x0214]  Port 2 APE RX Pool Mode/Status
 // [0x0218]  Port 2-related D - Ret
@@ -1892,10 +2075,6 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 
 // [0x0300]  Series APE+0x14 Unknown - Func3
 // [0x0300]  Port 3-related C
-
-// [0x0304]  Series APE+1C Unknown - Func3
-//   Relates to Func3.
-// [0x0308]  Series APE+0x20 Unknown - Func3
 
 // [0x0314]  Port 3 APE RX Pool Mode/Status
 // [0x0318]  Port 3-related D - Ret
@@ -2962,7 +3141,6 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // [APEPER+0x300] BMC->NC RX Status
 #define REG_APE__BMC_NC_RX_STATUS     APE_REG(0x8300)
 #define REG_APE__BMC_NC_RX_STATUS__PACKET_LEN__MASK 0x07FF0000
-// This seems to indicate the SA_HIT field is valid. ?
 #define REG_APE__BMC_NC_RX_STATUS__SA_HIT__MASK     0x00003C00
 #define REG_APE__BMC_NC_RX_STATUS__FLUSH_DONE       0x00000200
 #define REG_APE__BMC_NC_RX_STATUS__FLUSHING         0x00000100
@@ -2970,6 +3148,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 #define REG_APE__BMC_NC_RX_STATUS__EOF              0x00000040
 #define REG_APE__BMC_NC_RX_STATUS__UNDERRUN         0x00000020
 #define REG_APE__BMC_NC_RX_STATUS__VLAN             0x00000010
+// This seems to indicate the SA_HIT field is valid.
 #define REG_APE__BMC_NC_RX_STATUS__SA_HIT_VALID     0x00000008
 #define REG_APE__BMC_NC_RX_STATUS__PASSTHRU         0x00000004 /* else cmd */
 #define REG_APE__BMC_NC_RX_STATUS__BAD              0x00000002
@@ -2984,6 +3163,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 // [APEPER+0x30C] BMC->NC RX Source MAC Match n
 // For 0 <= n < 8:
 //   [APEPER+0x30C+8*n]    MAC High
+//     Bit 0x0100_0000 is set when link down.
 //   [APEPER+0x30C+8*n+4]  MAC Low
 // End: [APEPER+0x354]
 #define REG_APE__BMC_NC_RX_SRC_MAC_MATCHN_HIGH(Num) APE_REG(0x830C+8*(Num)+0)
@@ -2997,6 +3177,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 
 // [APEPER+0x350] BMC->NC
 //   Probably for reading from buffer. Read this register repeatedly.
+#define REG_APE__BMC_NC_RX_BUF_READ   APE_REG(0x8350)
 
 // [APEPER+0x354] BMC->NC RX Control
 #define REG_APE__BMC_NC_RX_CONTROL    APE_REG(0x8354)
@@ -3047,12 +3228,14 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 //   lots of words are written to this at once?
 //   It seems like you write a packet to the RMU by writing the words to this
 //   in sequence. Appears to be to the BMC.
-//
+#define REG_APE__NC_BMC_TX_BUF_WRITE        APE_REG(0x8378)
+
 // unknown: 0x37C
 //   This seems to be masked by LAST_BYTE_COUNT__MASK to allow a frame to have
 //   a size which is not a multiple of four bytes. It also seems to indicate
 //   the end of a frame (for frames with sizes which are a multiple of four
 //   bytes, LAST_BYTE_COUNT__MASK is set to zero and this is written as zero).
+#define REG_APE__NC_BMC_TX_BUF_WRITE_LAST   APE_REG(0x837C)
 
 // [APEPER+0x380] NC->BMC TX Status 1
 // bits 0-31: "txpkt"
@@ -3150,6 +3333,56 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 
 // ============ End of APE Periperal Blocks ============
 
+// Receive Rules/Management Filter Format.
+#define RULE_OFFSET__MASK BITS( 0, 7)
+#define RULE_CLASS__MASK  BITS( 8,12)
+#define RULE_HEADER__MASK BITS(13,15)
+#define   RULE_HEADER__SOF    (0x0<<13)
+#define   RULE_HEADER__IP     (0x1<<13)
+#define   RULE_HEADER__TCP    (0x2<<13)
+#define   RULE_HEADER__UDP    (0x3<<13)
+#define   RULE_HEADER__DATA   (0x4<<13)
+#define   RULE_HEADER__ICMPV4 (0x5<<13)
+#define   RULE_HEADER__ICMPV6 (0x6<<13)
+#define   RULE_HEADER__VLAN   (0x7<<13)
+#define RULE_OP__MASK     BITS(16,17)
+#define   RULE_OP__EQ         (0x0<<16)
+#define   RULE_OP__NE         (0x1<<16)
+#define   RULE_OP__GT         (0x2<<16)
+#define   RULE_OP__LT         (0x3<<16)
+#define RULE_MAP          BIT (24)
+#define RULE_DISCARD      BIT (25)
+#define RULE_MASK         BIT (26)
+#define RULE_P3           BIT (27)
+#define RULE_P2           BIT (28)
+#define RULE_P1           BIT (29)
+#define RULE_AND          BIT (30)
+#define RULE_ENABLE       BIT (31)
+
+// These come after the device register space but are only accessible from the
+// APE (0xA004_8000). N < 32. [0x8000, 0x8080)
+#define REG_APE_RULE_ELEMN_CFG(N)       (0x8000+(N)*4)
+// [0x8080, 0x8100). If RULE_MASK is set, low 16 bits are a bitmask and high 16
+// bits are the value masked by it. If it is not set, the entire field is a
+// 32-bit match value.
+#define REG_APE_RULE_ELEMN_PAT(N)       (0x8080+(N)*4)
+
+#define REG_APE_RULE_SET0_CFG       0x8100
+#define REG_APE_RULE_SET0_CFG__FILTER_SET_DISABLE      BIT( 0)
+#define REG_APE_RULE_SET0_CFG__DIRECT_IP_FRAG_TO_APE   BIT(31)
+
+// N >= 1. N < 32.
+#define REG_APE_RULE_SETN_CFG(N)    (0x8100+(N)*4)
+#define REG_APE_RULE_SETN_CFG__ACTION__MASK           BITS( 0, 2)
+#define   REG_APE_RULE_SETN_CFG__ACTION__TO_APE_ONLY      (0x0<<0)
+#define   REG_APE_RULE_SETN_CFG__ACTION__TO_APE_AND_HOST  (0x1<<0)
+#define   REG_APE_RULE_SETN_CFG__ACTION__DISCARD          (0x2<<0)
+#define REG_APE_RULE_SETN_CFG__COUNT__MASK            BITS( 3,18)
+
+// N >= 1. N < 32.
+#define REG_APE_RULE_SETN_MASK(N)   (0x8180+(N)*4)
+
+
 /*
 from diag:
   32 16  8
@@ -3230,6 +3463,9 @@ static inline uint8_t GetSERDESNo(void) {
 
 static inline uint32_t SwapEndian32(uint32_t x) {
   return __builtin_bswap32(x); // GCC
+}
+static inline uint16_t SwapEndian16(uint16_t x) {
+  return __builtin_bswap16(x); // GCC
 }
 static inline uint32_t SwapHalves32(uint32_t x) {
   return (x >> 16) | (x << 16);
@@ -3376,17 +3612,70 @@ enum {
   EXTINT_HANDLE_EVENT                  = 0x02,
   EXTINT_03H                           = 0x03, // Unknown, just uses exception handler
   EXTINT_H2B                           = 0x08,
-  EXTINT_0AH                           = 0x0A, // Unknown, handled
+  EXTINT_TX_ERR                        = 0x0A, // Appears to be fatal TX error
   EXTINT_RX_PACKET_EVEN_PORTS          = 0x0B,
   EXTINT_SMBUS_0                       = 0x0E,
   EXTINT_SMBUS_1                       = 0x10,
   EXTINT_RMU_EGRESS                    = 0x11,
   EXTINT_GEN_STATUS_CHANGE             = 0x14,
+  // 0x15: seems to be always pending, but always masked. no handler (i.e., uses exception handler)
   EXTINT_VOLTAGE_SOURCE_CHANGE         = 0x18,
   EXTINT_LINK_STATUS_CHANGE_EVEN_PORTS = 0x19,
   EXTINT_LINK_STATUS_CHANGE_ODD_PORTS  = 0x1A,
   EXTINT_RX_PACKET_ODD_PORTS           = 0x1B,
 };
+
+enum {
+  NCSI_CMD__CLEAR_INITIAL_STATE         = 0x00,
+  NCSI_CMD__SELECT_PACKAGE              = 0x01,
+  NCSI_CMD__DESELECT_PACKAGE            = 0x02,
+  NCSI_CMD__ENABLE_CHANNEL              = 0x03,
+  NCSI_CMD__DISABLE_CHANNEL             = 0x04,
+  NCSI_CMD__RESET_CHANNEL               = 0x05,
+  NCSI_CMD__ENABLE_CHANNEL_NETWORK_TX   = 0x06,
+  NCSI_CMD__DISABLE_CHANNEL_NETWORK_TX  = 0x07,
+  NCSI_CMD__AEN_ENABLE                  = 0x08,
+  NCSI_CMD__SET_LINK                    = 0x09,
+  NCSI_CMD__GET_LINK_STATUS             = 0x0A,
+  NCSI_CMD__SET_VLAN_FILTER                     = 0x0B,
+  NCSI_CMD__ENABLE_VLAN                         = 0x0C,
+  NCSI_CMD__DISABLE_VLAN                        = 0x0D,
+  NCSI_CMD__SET_MAC_ADDRESS                     = 0x0E,
+  NCSI_CMD__ENABLE_BROADCAST_FILTERING          = 0x10,
+  NCSI_CMD__DISABLE_BROADCAST_FILTERING         = 0x11,
+  NCSI_CMD__ENABLE_GLOBAL_MULTICAST_FILTERING   = 0x12,
+  NCSI_CMD__DISABLE_GLOBAL_MULTICAST_FILTERING  = 0x13,
+  NCSI_CMD__SET_NCSI_FLOW_CONTROL               = 0x14,
+  NCSI_CMD__GET_VERSION_ID                      = 0x15,
+  NCSI_CMD__GET_CAPABILITIES                    = 0x16,
+  NCSI_CMD__GET_PARAMETERS                      = 0x17,
+  NCSI_CMD__GET_CONTROLLER_PACKET_STATISTICS    = 0x18,
+  NCSI_CMD__GET_NCSI_STATISTICS                 = 0x19,
+  NCSI_CMD__GET_NCSI_PASSTHROUGH_STATISTICS     = 0x1A,
+  NCSI_CMD__OEM                                 = 0x50,
+
+  NCSI_CMD_RES                                  = 0x80,
+};
+
+enum {
+  NCSI_RES__COMPLETED        = 0x00,
+  NCSI_RES__FAILED           = 0x01,
+  NCSI_RES__UNAVAILABLE      = 0x02,
+  NCSI_RES__UNSUPPORTED      = 0x03,
+};
+
+enum {
+  NCSI_REASON__NONE               = 0x0000,
+  NCSI_REASON__INIT_REQUIRED      = 0x0001,
+  NCSI_REASON__PARAM_INVALID      = 0x0002,
+  NCSI_REASON__CHANNEL_NOT_READY  = 0x0003,
+  NCSI_REASON__PACKAGE_NOT_READY  = 0x0004,
+  NCSI_REASON__INVALID_LENGTH     = 0x0005,
+  NCSI_REASON__UNKNOWN            = 0x7FFF,
+};
+
+#define ETH_NCSI    0x88F8
+
 
 /* Access Utilities
  * ----------------
@@ -3416,7 +3705,7 @@ static inline void NVICIntClearPending(uint32_t extIntNo) {
 }
 
 // e.g. GetDevReg(0, REG_STATUS);
-static inline uint32_t *GetDevRegAddr(uint8_t func, uint32_t regno) {
+static inline volatile uint32_t *GetDevRegAddr(uint8_t func, uint32_t regno) {
   return (uint32_t*)(APE_DEVREG_BASE + (((uint32_t)func)*0x10000) + regno);
 }
 static inline uint32_t GetDevReg(uint8_t func, uint32_t regno) {
