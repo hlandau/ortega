@@ -125,6 +125,7 @@
 #define REG_EMAC_MODE__MAGIC_PACKET_DETECTION_ENABLE 0x00040000
 #define REG_EMAC_MODE__MAC_LOOPBACK_MODE_CONTROL 0x20000000
 #define REG_EMAC_MODE__ENABLE_APE_TX_PATH 0x10000000
+#define REG_EMAC_MODE__ENABLE_APE_RX_PATH 0x08000000
 
 #define REG_EMAC_STATUS 0x0404
 #define REG_EMAC_STATUS__LINK_STATE_CHANGED    0x1000
@@ -163,13 +164,17 @@
 #define REG_MII_MODE 0x0454
 #define REG_MII_MODE__CONSTANT_MDIO_MDC_CLOCK_SPEED           0x00008000
 
-#define REG_RECEIVE_MAC_MODE 0x0468
-#define REG_RECEIVE_MAC_MODE__ENABLE 0x0002
-#define REG_RECEIVE_MAC_MODE__PROMISCUOUS_MODE 0x0010
+#define REG_RECEIVE_MAC_MODE                         0x0468
+#define REG_RECEIVE_MAC_MODE__ENABLE                BIT( 1)
+#define REG_RECEIVE_MAC_MODE__PROMISCUOUS_MODE      BIT( 8)
+#define REG_RECEIVE_MAC_MODE__APE_PROMISCUOUS_MODE  BIT(25)
 
 // According to the register manual, these set the MAC addresses assigned to
 // the APE for RX matching purposes. The diag tools consider PERFECT_MATCH1 to
-// be the "APE MAC"...
+// be the "APE MAC".
+//
+// The "high" registers take the upper two bytes of the MAC in their low 16
+// bits (high 16 set to zero), and the low the remaining four bytes.
 #define REG_APE_PERFECT_MATCH1_HIGH 0x0540
 #define REG_APE_PERFECT_MATCHN_HIGH(N) (0x0540+8*(N))
 #define REG_APE_PERFECT_MATCH1_LOW  0x0544
@@ -1656,7 +1661,7 @@ static inline void SetGencom16(uint32_t offset, uint16_t value) {
 //   Appears to indicate incoming packet. Probably references offset into 0xA000_0000.
 //   The fields are block numbers (block size 128 bytes).
 //
-//   Note: only read this register once per frame, it likely mutates the queue state.
+//   Note: despite the name, this does NOT appear to mutate the queue state on read (?).
 //
 //   bit 30: Packet available to read?
 //   INT 0Bh handler / diag tool logdump appears to indicate this contains
@@ -3181,6 +3186,7 @@ static inline uint32_t REG_APE__RX_POOL_RET(uint32_t func) {
 
 // [APEPER+0x354] BMC->NC RX Control
 #define REG_APE__BMC_NC_RX_CONTROL    APE_REG(0x8354)
+#define REG_APE__BMC_NC_RX_CONTROL__RESET_BAD            0x02000000 /* guessed, or'd after receiving BMC_NC_RX_STATUS__BAD frame */
 #define REG_APE__BMC_NC_RX_CONTROL__FLOW_CONTROL         0x01000000
 #define REG_APE__BMC_NC_RX_CONTROL__HWM__MASK            0x000007FF
 #define REG_APE__BMC_NC_RX_CONTROL__XON_THRESHOLD__MASK  0xFFFFF800
@@ -3378,6 +3384,7 @@ static inline uint32_t REG_APE__RX_POOL_RET(uint32_t func) {
 #define   REG_APE_RULE_SETN_CFG__ACTION__TO_APE_AND_HOST  (0x1<<0)
 #define   REG_APE_RULE_SETN_CFG__ACTION__DISCARD          (0x2<<0)
 #define REG_APE_RULE_SETN_CFG__COUNT__MASK            BITS( 3,18)
+#define REG_APE_RULE_SETN_CFG__ENABLE                 BIT (31)
 
 // N >= 1. N < 32.
 #define REG_APE_RULE_SETN_MASK(N)   (0x8180+(N)*4)

@@ -981,7 +981,107 @@ buffer lengths.
 
 ### RX From Network
 
-TODO
+**Interrupts.** There are two interrupts indicating when there is data
+available to RX to the network, `EXTINT_RX_PACKET_{EVEN,ODD}_PORTS`. The `EVEN`
+interrupt fires for ports 0 and 2, and the `ODD` interrupt fires for ports 1
+and 3.
+
+Keep in mind that unlike TX, where it's up to you what you send, there's
+substantial filtering and switching inside the hardware determining what to
+send to the APE. You only receive frames which the hardware has decided to give
+to the APE, not all traffic.
+
+These interrupts are level-triggered, you need to mask them once you receive
+them until you're done processing RX frames and ready for more.
+
+Make sure to clear the NVIC's interrupt pending flags before unmasking them.
+
+**Resources.** The following memory ranges are involved in RX from network:
+
+  - `0xA000_0000 + 0x4000*port`, size `0x4000`, `0 <= port < 4` (i.e.,
+    `[0xA000_4000, 0xA000_7FFF]` for the second port, etc.).
+
+    This is the memory range into which frames received and directed towards
+    the APE are placed by the hardware. The hardware will tell you where in
+    this region the frame has been placed.
+
+  - `REG_APE__RX_QUEUE_DEQUEUE`.
+  - `REG_APE__RX_POOL_RET`.
+
+The DEQUEUE register tells you where in the buffer the newly received frame has
+been placed. Unlike transmission, there is no event doorbell to tell the
+hardware when the APE core is done with the buffer, so you need to explicitly
+tell the hardware when it can reclaim the area containing the frame and use it
+for subsequent frames; this is done by the POOL_RET register.
+
+**Initialization.** Due to the presence of various filtering systems in the RX
+path, initialising RX is more complicated than TX. 
+
+The first step directly parallels the TX path:
+
+  - Set `REG_APE__RX_TO_NET_POOL_MODE_STATUS` for a given port to
+    `REG_APE__RX_TO_NET_POOL_MODE_STATUS__ENABLE`. This sets up the block
+    allocator which the hardware uses to decide where to write frames into the
+    RX memory range.
+
+However, **you also need to setup RX filtering.** See below for the dedicated
+section on how to do this.
+
+**Reception.** You have received an RX interrupt, and want to receive the frame:
+
+  - `REG_APE__RX_QUEUE_DEQUEUE` must have `VALID` set, this indicates that there
+    is a frame available to RX.
+
+    Note: Despite the name, this register does not have appear to side effects
+    when reading it, you can read it as much as you like.
+
+  - The HEAD, TAIL and COUNT fields of DEQUEUE indicate where the frame is in
+    the RX memory. HEAD and TAIL are block numbers within the RX memory,
+    representing the first and last blocks of the frame, respectively. Each
+    block is 128 bytes. COUNT is the number of blocks.
+
+    Each block has a header. The first block of a frame has a bigger header.
+    The headers are as follows. Each line is a 32-bit word:
+
+      0  Control
+           bits  0: 6: Block Payload Length
+           bits  7:??: Block Number of Subsequent Block (or 0 if last)
+      1  (Not used)
+
+      IF FIRST BLOCK:
+        2  (Not used)
+        3  (Not used)
+        4  (Not used)
+        5  (Not used)
+        6  (Not used)
+        7  (Not used)
+        8  (Not used)
+        9  (Not used)
+       10  (Not used)
+       11  (Not used)
+       12  (First word of actual payload, i.e. first word of Etherframe header, i.e. Dst MAC bytes 0-3)
+       ... Payload continues
+      ELSE:
+        2  (First word of actual payload for this block)
+        ... Payload continues
+
+  - Once you are done examining the frame memory (don't hold on to it for any
+    length of time), you need to return it to the hardware so it can be used
+    for another frame.
+
+    Set `REG_APE__RX_POOL_RET` with COUNT, HEAD and TAIL set to the values you
+    found in the DEQUEUE register, plus bit 24 set. This returns the set of
+    blocks used for the frame to the hardware.
+
+  - Finally, inform the `DEQUEUE` register that you're done with this frame and
+    ready for the next one:
+
+    Or bit 31 of `DEQUEUE`.
+
+  - Now you can try and receive another frame (if `VALID` is still set),
+    or failing that clear the RX interrupt (it's level triggered so it'll hang
+    around, you need to clear it explicitly), unmask it and go and do something
+    else.
 
 ### TX To RMU (RGMII NC-SI)
 
@@ -999,10 +1099,18 @@ of when a frame has been received (`EXTINT_RMU_EGRESS`).
     - `MEMORY_ECC`
     - `ICODE_PIP_RD_DISABLE`
 
-  - Set `REG_APE__RMU_CONTROL` to `AUTO_DRV|RX|TX`. Also set bits 19 and 20
+  - Optionally, set `REG_APE__RMU_CONTROL` to `RST_RX|RST_TX`. This can help
+    unwedge the state machines if you wedged them previously due to a bug in
+    your code.
+
+  - Now set `REG_APE__RMU_CONTROL` to `AUTO_DRV|RX|TX`. Also set bits 19 and 20
     (meaning unknown).
 
-  - Set `REG_APE__BMC_NC_RX_CONTROL` to FLOW_CONTROL=1, HWM=0x240, XON_THRESHOLD=0x201F.
+  - Set `REG_APE__BMC_NC_RX_CONTROL` to FLOW_CONTROL=0 or 1, HWM=0x240, XON_THRESHOLD=0x201F.
+
+    Note: FLOW_CONTROL=1 enables the hardware to automatically send PAUSE
+    frames to the BMC. tcpdump can detect these, so keeping flow control on
+    gives you a way to detect when the RX state machine has gotten wedged.
 
   - Set `REG_APE__NC_BMC_TX_CONTROL` to 0.
 
@@ -1043,6 +1151,13 @@ of when a frame has been received (`EXTINT_RMU_EGRESS`).
   - Poll `REG_APE__BMC_NC_RX_STATUS` and ensure the `NEW` flag is set. If it isn't,
     there's no frame to receive; stop here.
 
+  - If `REG_APE__BMC_NC_RX_STATUS__BAD` is set, something is wrong with the
+    frame... set bit `REG_APE__BMC_NC_RX_CONTROL__RESET_BAD` to acknowledge the
+    bad frame and stop here.
+
+    (Failing to set this bit appears to wedge the RX eventually, so it's
+    important to ack this.)
+
   - The `REG_APE__BMC_NC_RX_STATUS__PACKET_LEN` field expresses the incoming
     frame length in bytes.
     
@@ -1067,3 +1182,194 @@ of when a frame has been received (`EXTINT_RMU_EGRESS`).
 Note that `EXTINT_RMU_EGRESS` is a **level-triggered** interrupt asserted
 whenever there is data available for RX, so you will need to mask it when it
 fires, then do the above to get the received frame.
+
+## RX Filtering
+
+Since a device has no control over what it receives compared to what it
+transmits, there's a lot of filtering in the RX path that isn't present in the
+TX path. This needs to be setup correctly or the APE will not receive anything
+at all.
+
+Things you need to set:
+
+  - `REG_APE_PERFECT_MATCH1_{HIGH,LOW}`. For non-broadcast/multicast traffic,
+    the hardware uses this register to match MACs and pass traffic to the APE.
+    The first two bytes of a MAC are put in the HIGH register, and the
+    remaining four bytes in the LOW. Note that this is a device (PCI) register,
+    not an APE register. Set it to the BMC MAC.
+
+  - `REG_APE__BMC_NC_RX_SRC_MAC_MATCHN_{HIGH,LOW}`. This appears to relate to
+    the RMU, onot network RX, but its exact purpose is unknown. Set it to the
+    BMC MAC. Unlike the "perfect match" register above, it takes a different
+    format: for an example MAC AABB.CCDD.EEFF, set HIGH=0xAABBCCDD,
+    LOW=0xEEFF0000.
+
+  - Ensure `REG_RECEIVE_MAC_MODE` has `ENABLE` set. I recommend also setting
+    `APE_PROMISCUOUS_MODE` and `PROMISCUOUS_MODE`, as these will cause you less
+    headaches during development.
+
+    Note that `APE_PROMISCUOUS_MODE` does *not* bypass the "management filters"
+    I discuss below. You still need to do everything in this section.
+
+  - Ensure `REG_EMAC_MODE__ENABLE_APE_{TX,RX}_PATH` are set.
+
+  - Initialize the management filters as specified below.
+
+### The Management Filters
+
+The management filter register block is roughly in the device register space at
+0x8000 (i.e., at 0xA004_8000) but despite that it is only accessible from the
+APE. Every register is 32-bit.
+
+What the management filters essentially do is let you configure pattern matches
+on incoming frames to select them for APE RX. This is used to select certain
+types of broadcast and multicast traffic since they can't be matched by a
+simple MAC filter.
+
+This region is wholly undocumented and so the below is pretty blind. For some
+background reading though, the format seems to closely follow the "receive
+rules" format specified in the official register manual.
+
+The management filter register space appears to be divided into multiple
+blocks. The first block, at [0xA004_8000, 0xA004_8100), is referred to herein
+as the "rule elements block".
+
+#### The Rule Elements Block
+
+In this block, each rule element consists of two registers: a config register
+(`REG_APE_RULE_ELEMN_CFG`) and a pattern register (`REG_APE_RULE_ELEMN_PAT`).
+The config register sets whether the filter is enabled and how the pattern
+register is interpreted, etc. The pattern register provides the actual pattern
+data to match against. There are 32 of these rule elements.
+
+  - In the config register, `RULE_ENABLE` enables the rule.
+    (Broadcast/multicast traffic that doesn't match any enabled rule gets
+    dropped; the hardware behaviour is default-drop.)
+
+  - `RULE_AND` chains a rule element with the next element, logical AND.
+
+  - `RULE_OP` selects the type of match (EQ, NE, GT, LT).
+
+  - `RULE_MASK` controls how the pattern is interpreted. If it's not set, the
+    pattern is a 32-bit value matched exactly. If it is set, the pattern is
+    split into a 16-bit mask (the low 16 bits) and a 16-bit value masked by it
+    (the high 16 bits).
+
+  - `RULE_HEADER` sets what header is checked (SOF (Ethernet), IP, TCP, UDP,
+    DATA, ICMPV4, ICMPV6, VLAN). The `RULE_OFFSET` field determines the offset
+    of the field in the selected header to check, in bytes.
+
+**Recommended configuration.** The reccomended configuration for the Rule Elements Block is as follows:
+
+  - E-0 through E-15. Not used, initialize to zero.
+
+  - E-16. *Check MAC address multicast bit not set.* HEADER=SOF, OFFSET=0, OP=NE, MASK=1, ENABLE=1, PAT=0x0100_0100.
+
+  - E-17, E-18. Not used, initialize to zero.
+
+  - E-19. *Special VLAN match.* HEADER=VLAN, OFFSET=0, OP=EQ, MASK=1, ENABLE=1, PAT=0.
+
+  - E-20. *IPv6 Neighbour Advertisement.* HEADER=ICMPv6, OFFSET=0, OP=EQ, MASK=1, ENABLE=0, PAT=0x8800_FF00.
+
+  - E-21. *IPv6 Router Advertisement.* HEADER=ICMPv6, OFFSET=0, OP=EQ, MASK=1, ENABLE=0, PAT=0x8600_FF00.
+
+  - E-22. *DHCPv6 Server.* HEADER=UDP, OFFSET=2, OP=EQ, MASK=1, ENABLE=0, PAT=0x0223_FFFF.
+
+  - E-24. *ARP match.* HEADER=SOF, OFFSET=12, OP=EQ, MASK=1, ENABLE=(as desired, recommend 1), PAT=0x0806_FFFF.
+
+  - E-25. *DHCPv4.* HEADER=UDP, OFFSET=2, OP=EQ, MASK=1, ENABLE=(as desired, recommend 1), PAT=0x0044_FFFF.
+
+  - E-26. *DHCPv4.* HEADER=UDP, OFFSET=2, OP=EQ, MASK=1, ENABLE=(as desired, recommend 1), PAT=0x0043_FFFF.
+
+  - E-27. *NetBIOS.* HEADER=UDP, OFFSET=2, OP=EQ, MASK=1, ENABLE=(as desired, recommend 1), PAT=0x0088_FFFC.
+
+  - E-28. *Broadcast address match.* HEADER=SOF, OFFSET=0, OP=EQ, MASK=0, ENABLE=1, PAT=0xFFFF_FFFF.
+
+  - E-29. *Broadcast address match.* HEADER=SOF, OFFSET=4, OP=EQ, MASK=1, ENABLE=1, PAT=0xFFFF_FFF.
+
+  - E-30. *IPv6 multicast.* HEADER=SOF, OFFSET=0, OP=EQ, MASK=1, ENABLE=1, PAT=0x3333_FFFF.
+
+  - E-31. *Check MAC address multicast bit is set.* HEADER=SOF, OP=EQ, MASK=1, ENABLE=1, PAT=0x0100_0100.
+
+It is important to remember to zero elements you do not use.
+
+#### The Ruleset Block
+
+This block, starting at 0xA004_8100, is poorly understood. However, setting
+registers in it correctly is essential to network RX. Like the Rule Elements
+block, it has 32 elements, each comprising `REG_APE_RULE_SETN_CFG` and
+`REG_APE_RULE_SETN_MASK`.
+
+**Element 0.** Element 0 is special; see `REG_APE_RULE_SET0_CFG`, it appears to
+be a general configuration register. Recommended value: 0. (Setting `FILTER_SET_DISABLE` in this will
+make RX not work at all, so don't do that.)
+
+**Zeroing.** As for the Rule Elements block, make sure you zero the elements
+you don't otherwise initialise.
+
+Bit 31 of the CFG registers is most likely an enable bit.
+
+**Recommended configuration** of elements 1-31 is as follows:
+ 
+  - S-1. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=1, MASK=0x0003_0000.
+
+  - S-2. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=1, MASK=0x0005_0000.
+
+  - S-3. ACTION=TO_APE_AND_HOST, COUNT=2, ENABLE=recommend 1.
+
+  - S-4. ACTION=T0_APE_AND_HOST, COUNT=0, ENABLE=1, MASK=0x0001_0000.
+
+  - S-5. Not used, initialize to zero.
+
+  - S-6. Not used, initialize to zero.
+
+  - S-7. Not used, initialize to zero.
+
+  - S-8. Not used, initialize to zero.
+
+  - S-9. ACTION=TO_APE_AND_HOST, COUNT=2, ENABLE=recommend 1, MASK=0x3008_0000.
+
+  - S-10. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=1 (essential for RX), MASK=0x3100_0000.
+
+  - S-11. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=1 (essential for RX), MASK=0x3200_0000.
+
+  - S-12. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=1 (essential for RX), MASK=0x3400_0000.
+
+  - S-13. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=1 (essential for RX), MASK=0x3800_0000.
+
+  - S-14. ACTION=TO_APE_AND_HOST, COUNT=2, ENABLE=1 (essential for RX), MASK=0x3000_0000.
+
+  - S-15. Not used, initialize to zero.
+
+  - S-16. Not used, initialize to zero.
+
+  - S-17. Not used, initialize to zero.
+
+  - S-18. ACTION=TO_APE_AND_HOST, COUNT=2, ENABLE=recommend 1, MASK=0x8008_0000.
+
+  - S-19. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=0, MASK=`(0b11)<<(2*0)`.
+  
+  - S-20. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=0, MASK=`(0b11)<<(2*1)`.
+  
+  - S-21. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=0, MASK=`(0b11)<<(2*2)`.
+  
+  - S-22. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=0, MASK=`(0b11)<<(2*3)`.
+  
+  - S-23. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=0, MASK=`(0b11)<<(2*4)`.
+  
+  - S-24. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=0, MASK=`(0b11)<<(2*5)`.
+  
+  - S-25. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=0, MASK=`(0b11)<<(2*6)`.
+
+  - S-26. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=0, MASK=`(0b11)<<(2*7)`.
+
+  - S-27. Not used, initialize to zero.
+
+  - S-28. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=0, MASK=0x4010_0000.
+
+  - S-29. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=0, MASK=0x4020_0000.
+
+  - S-30. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=0, MASK=0x4040_0000.
+
+  - S-31. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=0, MASK=0x8000_0000.
+
