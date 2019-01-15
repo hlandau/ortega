@@ -1160,7 +1160,7 @@ of when a frame has been received (`EXTINT_RMU_EGRESS`).
 
   - The `REG_APE__BMC_NC_RX_STATUS__PACKET_LEN` field expresses the incoming
     frame length in bytes.
-    
+
     Note: `REG_APE__BMC_NC_RX_STATUS__PASSTHRU` appears to indicate whether
     this is expected by the hardware to be a "pass-through" (that is,
     to-the-network) frame. Purpose of this field is unknown, since APE core can
@@ -1171,13 +1171,13 @@ of when a frame has been received (`EXTINT_RMU_EGRESS`).
     Each read of this register pops one word of the incoming frame from the RX
     FIFO. You may need to endian-swap each word.
 
+    The final word (after any padding) is the FCS and should be ignored (but
+    the read must happen, else the state machine will still stuck on the
+    frame.)
+
     **Please note** that it is essential that the correct number of reads be
     performed as the APE does not have any other way of communicating that it
     has finished consuming the frame.
-
-  - Finally, read `REG_APE__BMC_NC_RX_BUF_READ` one more time. The value read
-    can be discarded. This appears to just be a spacer FIFO pop which must
-    happen after each frame RX.
 
 Note that `EXTINT_RMU_EGRESS` is a **level-triggered** interrupt asserted
 whenever there is data available for RX, so you will need to mask it when it
