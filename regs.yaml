@@ -1302,9 +1302,9 @@ Resources:
     Source: Guessed
     Notes: |
       Used to report power budget capability data to the host. The values are
-      loaded from NVM, and up to eight values may be specified. Each value is
-      specified in the lower 16 bits of one of these PCI Power Budget
-      registers. The upper 16 bits are set to zero.
+      loaded from NVM, and up to eight values may be specified. The value is a
+      32-bit value presented in the 'Data Register' field of the PCI Power
+      Budget capability.
     Bits:
       0-15: Power Budget Value
       16-31: Unknown

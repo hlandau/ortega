@@ -317,99 +317,12 @@ INTERRUPT void ISR_RMUEgress(isr_args *args) {
 /*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
 #endif
 
 /* RX From Network {{{1
  * ---------------
  */
 #ifdef PROPRIETARY
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
@@ -728,6 +641,12 @@ INTERRUPT void ISR_RMUEgress(isr_args *args) {
 /*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
+#endif
+
+/* B2H {{{1
+ * ===
+ */
+#ifdef PROPRIETARY
 /*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
@@ -736,6 +655,34 @@ INTERRUPT void ISR_RMUEgress(isr_args *args) {
 /*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+#endif
+
+/* H2B {{{1
+ * ===
+ */
+#ifdef PROPRIETARY
 /*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
@@ -971,12 +918,6 @@ INTERRUPT void ISR_RMUEgress(isr_args *args) {
  * ----
  */
 #ifdef PROPRIETARY
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
-/*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */

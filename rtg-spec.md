@@ -798,25 +798,8 @@ case, the driver demands the magic be there or it won't init (see
 The entrypoint assembly must be constructed as described in previous sections,
 and must call the S2Start function described in this section.
 
-Incomplete list of MII initialisation done by S2 init code FOR GPHY:
-  - Set `MII_REG_CONTROL` to `RESET`; wait until `RESET` bit clears.
-  - Mask `REG_MDI_CONTROL` bits 0x4. Meaning unknown.
-  - Set MII (SHADOW 0x05):0x1C as desired. e.g. `CLK125_OUTPUT_ENABLE`, `SIGDET_DEASSERT_TIMER_LENGTHEN`, `DISABLE_LOW_POWER_10BASET_LINK_MODE`, `LOW_POWER_ENC_DISABLE`.
-  - Cases for handling Mini-PCI mode (YES REALLY). Not mentioned here.
-  - Set `MII_REG_1000BASE_T_CONTROL` as desired (e.g. `ADVERTISE_FULL_DUPLEX|ADVERTISE_HALF_DUPLEX`).
-  - Set `MII_REG_AUTO_NEGOTIATION_ADVERTISEMENT` as desired (pretty much enable
-    `PROTOCOL_SELECT__IEEE_802_3` and all the full/half duplex options).
-Incomplete list of MII initialisation done by S2 init code FOR SERDES:
-  - Set `MII_REG_CONTROL` to `AUTO_NEGOTIATION_RESTART|AUTO_NEGOTIATION_ENABLE`.
-
-Incomplete list of initialisation taken by S2 init code:
-  - Set `REG_EMAC_MODE__PORT_MODE` based on `REG_STATUS__ETHERNET_LINK_STATUS`
-    (GPHY) or `REG_SGMII_STATUS__LINK_STATUS` (SERDES).
-  - Set `REG_LINK_AWARE_POWER_MODE_CLOCK_POLICY__MAC_CLOCK_SWITCH__6_25MHZ`.
-  - Set/mask `REG_CPMU_CONTROL__LINK_{AWARE,IDLE,SPEED}_POWER_MODE_ENABLE` as
-    desired (from NVM).
-
 The following actions are taken late in init, immediately before the S2 main loop:
+  - Set `GEN_ASF_STATUS_MBOX` to `BOOTCODE_READY_MAGIC`.
   - Mask `REG_CLOCK_SPEED_OVERRIDE_POLICY__MAC_CLOCK_SPEED_OVERRIDE_ENABLE`.
   - Set `GEN_FIRMWARE_MBOX` to `BOOTCODE_READY_MAGIC`.
 

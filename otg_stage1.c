@@ -1133,6 +1133,8 @@ uint32_t g_using264BytePagesForNVM = 0;
 /*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
 #endif
 
 void noreturn S1Start(void) {
