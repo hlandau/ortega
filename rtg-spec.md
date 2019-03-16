@@ -719,7 +719,7 @@ The following actions are taken early, immediately after S1 boot.
 
   - Or `REG_MEMORY_ARBITER_MODE__ENABLE`.
   - Mask `REG_RX_RISC_MODE__ENABLE_DISABLE_CACHE`.
-  - Or `REG_PCI_STATE__{APE_PROGRAM_SPACE_WRITE_ENABLE,APE_SHARED_MEMORY_WRITE_ENABLE,APE_CONTROL_REGISTER_WRITE_ENABLE}'.
+  - Or `REG_PCI_STATE__{APE_PROGRAM_SPACE_WRITE_ENABLE,APE_SHARED_MEMORY_WRITE_ENABLE,APE_CONTROL_REGISTER_WRITE_ENABLE}`.
 
 The following actions are taken during S1 init.
 
@@ -799,11 +799,36 @@ The entrypoint assembly must be constructed as described in previous sections,
 and must call the S2Start function described in this section.
 
 The following actions are taken late in init, immediately before the S2 main loop:
+  - Initialise the RCPU SHM area.
   - Set `GEN_ASF_STATUS_MBOX` to `BOOTCODE_READY_MAGIC`.
+  - Set `REG_MISCELLANEOUS_LOCAL_CONTROL` to `AUTO_SEEPROM_ACCESS|GPIO_2_OUTPUT_ENABLE`.
+  - Setup link-aware power mode.
   - Mask `REG_CLOCK_SPEED_OVERRIDE_POLICY__MAC_CLOCK_SPEED_OVERRIDE_ENABLE`.
   - Set `GEN_FIRMWARE_MBOX` to `BOOTCODE_READY_MAGIC`.
 
-Then the main loop happens.
+Then the main loop happens. Various functionality needs to be performed by the main loop.
+
+**Link aware power mode.** The following must be performed while holding `REG_MUTEX_{REQUEST,GRANT}`; use bit 4.
+  - Set `REG_LINK_AWARE_POWER_MODE_CLOCK_POLICY` to `MAC_CLOCK_SWITCH__6_25MHZ`.
+  - Set `REG_CPMU_CONTROL` to zero or more of `LINK_AWARE_POWER_MODE_ENABLE`,
+    `LINK_IDLE_POWER_MODE_ENABLE`, `LINK_SPEED_POWER_MODE_ENABLE` as desired
+    (see NVM `CfgFeature`).
+
+**RCPU SHM init.** Setup SHM as follows:
+
+    REG_APE__RCPU_SEG_SIG                 = APE_RCPU_MAGIC
+    REG_APE__RCPU_SEG_LEN                 = 0x34
+    REG_APE__RCPU_INIT_COUNT              = 1 on first boot, increment on each MIPS boot
+    REG_APE__RCPU_FW_VERSION              = RX_FW_VERSION
+    REG_APE__RCPU_CFG_FEATURE             = NVM CfgFeature
+    REG_APE__RCPU_PCI_VENDOR_DEVICE_ID    = Upper 16 bits contains device ID, lower 16 bits contains vendor ID
+    REG_APE__RCPU_PCI_SUBSYSTEM_ID        = Upper 16 bits contains subsystem ID, lower 16 bits contains subsystem vendor ID
+    REG_APE__RCPU_CFG_HW                  = NVM CfgHw
+    REG_APE__RCPU_CFG_HW_2                = NVM CfgHw2
+    REG_APE__RCPU_CPMU_STATUS             = Set the high 16 bits to the high 16 bits of REG_STATUS, and the low 16 bits to "0x362C" (the number of REG_STATUS)
+    APE+0x411C                            = 0
+    APE+0x4120                            = 0
+    APE+0x4124                            = 0
 
 ## The APE
 
