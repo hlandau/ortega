@@ -3526,8 +3526,8 @@ static inline uint32_t SwapHalves32(uint32_t x) {
 #define NVIC_SYS_CONTROL                          0xE000ED10
 #define NVIC_CFG_CONTROL                          0xE000ED14
 #define NVIC_HANDLER_PRIORITY_4                   0xE000ED18
-#define NVIC_HANDLER_PRIORITY_8                   0xE000ED18
-#define NVIC_HANDLER_PRIORITY_12                  0xE000ED18
+#define NVIC_HANDLER_PRIORITY_8                   0xE000ED1C
+#define NVIC_HANDLER_PRIORITY_12                  0xE000ED20
 #define NVIC_HANDLER_CONTROL                      0xE000ED24
 #define NVIC_CONFIG_FAULT_STATUS                  0xE000ED28
 #define NVIC_HARD_FAULT_STATUS                    0xE000ED2C

@@ -470,7 +470,7 @@ offset (in bytes from the beginning of the dictionary buffer) is formed from B0
 (which provides the low 8 bits of the offset), and the 3 high bits of B1, which
 provides bits 8-10 of the offset. The number of bytes to take from the
 dictionary buffer starting at that offset — the reference length — is
-determined by taking the low 5 bits of B1 and adding 2 to the resulting value.
+determined by taking the low 5 bits of B1 and adding 3 to the resulting value.
 Each byte in the contiguous sequence of bytes in the dictionary buffer
 referenced by this offset and length is output as decompressed data, and also
 appended again into the dictionary buffer as would be a literal byte.
@@ -488,7 +488,7 @@ A concise summary of the format follows:
         Read a byte (B1)
         OFFSET = B0 | ((B1 & 0xE0) << 3);  # Offset from start of dictionary buffer
                                            # in bytes.
-        LENGTH = (B1 & 0x1F) + 2;          # Number of bytes to take from dictionary
+        LENGTH = (B1 & 0x1F) + 3;          # Number of bytes to take from dictionary
                                            # buffer, starting at OFFSET.
 
         For each byte in the range in the dictionary buffer specified by OFFSET and
