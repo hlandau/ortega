@@ -522,6 +522,10 @@ INTERRUPT void ISR_RMUEgress(isr_args *args) {
 /*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
+/*               scrubbed                    */
 #endif
 
 /* RMU {{{1
@@ -918,6 +922,8 @@ INTERRUPT void ISR_RMUEgress(isr_args *args) {
  * ----
  */
 #ifdef PROPRIETARY
+/*               scrubbed                    */
+/*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */
 /*               scrubbed                    */

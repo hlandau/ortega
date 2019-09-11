@@ -2537,7 +2537,7 @@ static inline uint32_t REG_APE__RX_POOL_RET(uint32_t func) {
 /* bit 17: not seen */
 /* bit 18: not seen */
 /* bit 19: unknown */
-/* bit 20: unknown */
+/* bit 20: unknown (EEE related) */
 /* bit 21: unknown (Huawei related) */
 /* bit 22-23: unknown (Huawei related) */
 
@@ -2722,7 +2722,9 @@ static inline uint32_t REG_APE__RX_POOL_RET(uint32_t func) {
 // [NCSIPORT+0x30+16N] Unknown series, 0 <= N < 4
 // Contains an index in range [0, 17). Related to g_bss113B04.
 // Each entry:
-//   4  ui  
+//   4  ui  [ 1..16]: valid range
+//            [ 1.. 8]: RMU MAC Slot Index + 1
+//            [ 9..16]: ?
 //   4  ui  MAC High
 //   4  ui  MAC Mid
 //   4  ui  MAC Low
@@ -2919,6 +2921,67 @@ static inline uint32_t REG_APE__RX_POOL_RET(uint32_t func) {
 // start, so AM 6024_0000 must be something different.
 // Memory map might be a bit random.
 //   Known UART regs 0x8000-0x8014
+
+// VERY GUESS:
+//
+// APE_REG(0x8000): THR/RBR (FIFO Read/Write)  or  DLL (if APE_REG(0x800C) bit 0x80 is set)
+// APE_REG(0x8004): IER                        or  DLM (if APE_REG(0x800C) bit 0x80 is set)
+//                    IER:
+//                      bit 0: RDA
+//                      bit 1: THRE
+//                      bit 2: RLS
+//                      bit 3: MS
+// APE_REG(0x8008): IIR
+//                    bit 0:   No interrupt pending
+//                    bit 1:2:
+//                      0: Modem Status
+//                      1: Transmit Holding Register Empty
+//                      2: Received Data Ready
+//                      3: Receiver Line Status
+// APE_REG(0x800C): LCR
+//                    bit 0:1:
+//                      0: 5bit
+//                      1: 6bit
+//                      2: 7bit
+//                      3: 8bit
+//                    bit 3:5:
+//                      0: 'N'
+//                      1: 'O'
+//                      3: 'E'
+//                      5: 'H'
+//                      7: 'L'
+//                    bit 2: if set, 1.5 stop bits, or 2 stop bits if bit0:1 is nonzero; else 1
+//                    bit 6: Break Enabled
+//                    bit 7: Register Access Selector; 0="RBR,THR and IER"; 1="DLL and DLM"
+//
+// APE_REG(0x8010): MCR
+//                    bit 0: Force DTR
+//                    bit 1: Force RTS
+//                    bit 2: AO1
+//                    bit 3: AO2
+//                    bit 4: Loopback
+// APE_REG(0x8014): LSR
+//                    bit 0: Data Avail
+//                    bit 1: ErrOverrun
+//                    bit 2: ErrParity
+//                    bit 3: ErrFraming
+//                    bit 4: Break
+//                    bit 5: THR empty
+//                    bit 6: THR&TSR empty
+//                    bit 7: FIFO empty
+//
+// APE_REG(0x8018): MSR
+//                    bit 0: DeltaCTS
+//                    bit 1: DeltaDSR
+//                    bit 2: DeltaRI
+//                    bit 3: DeltaDCD
+//                    bit 4: CTS
+//                    bit 5: DSR
+//                    bit 6: RI
+//                    bit 7: DCD
+//
+// APE_REG(0x801C): SR
+//
 
 // APEMEM: NVM access registers are here.
 //   6024_0000, at 0x00: feels like NVM Command (REG 0x7000)

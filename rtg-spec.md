@@ -1323,7 +1323,7 @@ Bit 31 of the CFG registers is most likely an enable bit.
 
   - S-2. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=1, MASK=0x0005_0000.
 
-  - S-3. ACTION=TO_APE_AND_HOST, COUNT=2, ENABLE=recommend 1.
+  - S-3. ACTION=TO_APE_AND_HOST, COUNT=2, ENABLE=recommend 1, MASK=0x0009_0000.
 
   - S-4. ACTION=T0_APE_AND_HOST, COUNT=0, ENABLE=1, MASK=0x0001_0000.
 
