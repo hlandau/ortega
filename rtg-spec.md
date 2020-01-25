@@ -1381,3 +1381,41 @@ Bit 31 of the CFG registers is most likely an enable bit.
 
   - S-31. ACTION=TO_APE_AND_HOST, COUNT=0, ENABLE=0, MASK=0x8000_0000.
 
+### Initialization Requirements
+
+It is essential that one of the very first things the APE does when it starts
+running is ensure that the “PCIe” side of the device is initialized properly.
+This has to be done via the most ridiculous kludge.
+
+Basically, if PCIe is brought up (the host is on) all is well. If however the
+host is off and PCIe has therefore not been brought up yet, APE access to the
+PCIe-side registers (`REG_*`) won't work. It appears the PCIe reference clock
+going to the chip from the host has to be cycled a few dozen times before the
+device's registers work properly.
+
+How is this done? I am not making this up, the mainboard is required to include
+a one-lane PCIe analog switch. The outputs are connected to the BCM5719's own
+differential PCIe `REFCLK` input. Input A, used in normal circumstances, is
+connected to the host's PCIe `REFCLK` output. Input B is connected to
+`APE_GPIO_{0,1}`, and switching between the two is controlled via `APE_GPIO_2`.
+These GPIOs are then used by the APE to manually bitbang clock cycles a few
+dozen times to *the same chip's own REFCLK input* before register access will
+work properly. 
+
+As such, when the APE first starts one of the very first things it should do,
+certainly before trying to access any registers, is ensure the PCIe-side
+registers are working. This can be done by testing if `REG_CHIP_ID` is nonzero;
+if zero, you must perform this clocking operation and then spin until it is
+nonzero:
+
+  - Using `REG_APE__GPIO`, set `APE_GPIO_{0,2}` to output high, `APE_GPIO_1` to
+    output low and `APE_GPIO_3` to input mode (this pin is unused). Now
+    `APE_GPIO_{0,1}` are being passed to the BCM5719's own differential
+    `REFCLK` input.
+  - Toggle `APE_GPIO_{0,1}` 38 (39?) times. This generates 19 `REFCLK` clock
+    cycles to itself.
+  - Toggle `APE_GPIO_2`; now the mux is set back to passing the host `REFCLK`
+    back to the device.
+
+Obviously, it is essential that `APE_GPIO_2` be in output mode and low during
+normal operation, otherwise the host PCIe interface won't work.
