@@ -117,7 +117,7 @@ NCSI APE image is the only one which has been observed).
 
 (NCSI is a method by which the use of a network controller can be shared,
 generally by a BMC. A BMC is connected to a NCSI-supporting network controller
-chip using either a variant of the RGMII interface or SMBus, and the network
+chip using either a variant of the RMII interface or SMBus, and the network
 controller arbitrates access to the network interface between the host and the
 BMC. This allows the BMC, which implements manageability functions for the
 system, to piggyback on the same Ethernet ports. This avoids the need for a
@@ -414,6 +414,10 @@ length and specifies the offsets, sizes and load addresses of these segments.
 
 The first segment contains unknown data which appears to be a set of key-value
 properties, with ASCII keys and binary values. The format is otherwise unknown.
+It also contains some code which can be called by the second segment if
+directed to by the host (via a SHM-based mailbox mechanism specific to the
+proprietary APE code). This functionality was not investigated but is believed
+to relate to boring platform management-related functionality (PLDM etc).
 
 The second segment is the ARM code to be executed by the APE. The Thumb 2
 encoding is used.
@@ -423,15 +427,15 @@ The third and fourth segments appear to be data segments used by the program.
 Each segment is separately compressed using the LZS Compression Algorithm
 described herein.
 
-### LZS Compression Algorithm
+### LZSS Compression Algorithm
 
 Some data (such as the segments of an APE Code image, or parts of non-UEFI PXE
 Option ROMs) is compressed using a custom compression format, which is a simple
 implementation of
-[LZS](https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Stac). (UEFI
+[LZSS]https://en.wikipedia.org/wiki/LZSS). (UEFI
 images are compressed using the UEFI standard compression algorithm.)
 
-A stream of LZS-compressed data logically consists of a series of chunks. Each
+A stream of LZSS-compressed data logically consists of a series of chunks. Each
 chunk is either a literal byte or a reference. A literal byte causes a
 specified byte to be output; it is also appended into the dictionary buffer. A
 reference chunk is a reference to a slice of the dictionary buffer, expressed
@@ -510,6 +514,11 @@ In ABNF (but with bits, not bytes):
     Chunk       = Literal / Reference
 
     Stream = *(8TypeBit 8Chunk) 8TypeBit 0*8Chunk
+
+The code Broadcom appears to use for this compression appears to originate from
+some DOS C code posted to a BBS in 1989. [This code can be found
+here.](https://en.wikipedia.org/wiki/LZSS#cite_note-3) Note that some constants
+have been changed, but the algorithm is otherwise the same.
 
 ## Miscellaneous Constants
 
@@ -843,7 +852,7 @@ exposed to the MIPS cores and the host and cannot be accessed except by
 obtaining control over the APE core.
 
 The APE is used to implement NC-SI, and processes and copies frames in software
-from/to the network to/from a BMC attached by NC-SI RGMII or SMBus. Because
+from/to the network to/from a BMC attached by NC-SI RMII or SMBus. Because
 this is done in software by a Cortex-M3, it has pretty poor performance, so be
 it.
 
@@ -851,7 +860,7 @@ Examples of peripherals available to the APE include:
 
   - Some sort of debug UART on the chip (haven't looked at this)
   - SMBus (one of the options for NC-SI, haven't looked at this)
-  - NC-SI RGMII (one of the options for NC-SI, now well understood)
+  - NC-SI RMII (one of the options for NC-SI, now well understood)
   - Lock/Arbitration Registers (shared with MIPS cores, host, etc.)
   - NVM Access Registers (shared with MIPS cores, host, etc.)
   - Network TX/RX ranges (used to TX/RX to/from the network ports, one range for each port)
@@ -874,8 +883,8 @@ For implementing NC-SI, the following areas of functionality must be implemented
 
   - TX To Network
   - RX From Network
-  - TX To RGMII
-  - RX From RGMII
+  - TX To RMII
+  - RX From RMII
   - Initialization (especially of management filters, else RX from net won't work)
   - NC-SI Control Packet Handling (see the DMTF NCSI specification)
 
@@ -1051,6 +1060,7 @@ section on how to do this.
     Each block has a header. The first block of a frame has a bigger header.
     The headers are as follows. Each line is a 32-bit word:
 
+    ```
       0  Control
            bits  0: 6: Block Payload Length
            bits  7:??: Block Number of Subsequent Block (or 0 if last)
@@ -1072,6 +1082,7 @@ section on how to do this.
       ELSE:
         2  (First word of actual payload for this block)
         ... Payload continues
+    ```
 
   - Once you are done examining the frame memory (don't hold on to it for any
     length of time), you need to return it to the hardware so it can be used
@@ -1091,10 +1102,10 @@ section on how to do this.
     around, you need to clear it explicitly), unmask it and go and do something
     else.
 
-### TX To RMU (RGMII NC-SI)
+### TX To RMU (RMII NC-SI)
 
-The RGMII NC-SI peripheral is known as the "RMU". This is a variant of Gigabit
-Ethernet's RGMII MAC-PHY interface, with a few small changes as specified by
+The RMII NC-SI peripheral is known as the "RMU". This is a variant of Gigabit
+Ethernet's RMII MAC-PHY interface, with a few small changes as specified by
 the DMTF NC-SI specification. The APE core uses this peripheral to send and
 receive Ethernet frames to/from a BMC. An interrupt is available for notification
 of when a frame has been received (`EXTINT_RMU_EGRESS`).
@@ -1150,7 +1161,7 @@ of when a frame has been received (`EXTINT_RMU_EGRESS`).
     Writing to this instead of `REG_APE__NC_BMC_TX_BUF_WRITE` indicates that
     this is the last word in the frame.
 
-### RX From RMU (RGMII NC-SI)
+### RX From RMU (RMII NC-SI)
 
 **Initialization.** See TX To RMU for the RMU init requirements.
 
