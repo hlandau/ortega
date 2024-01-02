@@ -432,7 +432,7 @@ described herein.
 Some data (such as the segments of an APE Code image, or parts of non-UEFI PXE
 Option ROMs) is compressed using a custom compression format, which is a simple
 implementation of
-[LZSS]https://en.wikipedia.org/wiki/LZSS). (UEFI
+[LZSS](https://en.wikipedia.org/wiki/LZSS). (UEFI
 images are compressed using the UEFI standard compression algorithm.)
 
 A stream of LZSS-compressed data logically consists of a series of chunks. Each
